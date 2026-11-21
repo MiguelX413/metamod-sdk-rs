@@ -692,7 +692,6 @@ else
     https://www.amxmodx.org/release/metamod-1.21.1-am.zip \
     -o "$DOWNLOADS/metamod-classic.zip"
 fi
-[[ -n $REHLDS_CONSOLE_VERSION ]] || REHLDS_CONSOLE_VERSION="$REHLDS_VER"
 [[ -n $METAMODR_CONSOLE_VERSION ]] || METAMODR_CONSOLE_VERSION="$METAMODR_VER"
 
 # Extract exactly one desired ELF32 binary from ZIP. No arbitrary archive
@@ -753,6 +752,31 @@ else
   say "No ricochet-updated GameDLL supplied; only stock Ricochet will be tested."
 fi
 
+if [[ -z $REHLDS_CONSOLE_VERSION ]]; then
+  say "Probing the staged ReHLDS engine for its console version token."
+  PROBE_LOG="$RUNROOT/rehlds-version-probe.log"
+  ( cd "$INSTALLS/linux-rehlds" && LD_LIBRARY_PATH="$PWD" \
+    timeout --signal=TERM --kill-after=3s 15s \
+    ./hlds_linux -console -insecure -nomaster -game ricochet -ip 127.0.0.1 -port 27098 \
+    +ip 127.0.0.1 +sv_lan 1 +map "$MAP_1" +version +quit ) \
+    > "$PROBE_LOG" 2>&1 || true
+  REHLDS_CONSOLE_VERSION="$(python3 - "$REPO/verify/audit" "$PROBE_LOG" <<'PY_REHLDS'
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from evidence import ENGINE
+
+lines = pathlib.Path(sys.argv[2]).read_text(errors='replace').splitlines()
+versions = {version for line in lines for name, version, _ in ENGINE.findall(line)
+            if name.lower().split() == ['rehlds', 'version']}
+if len(versions) == 1:
+    print(versions.pop())
+PY_REHLDS
+)"
+  if [[ -z $REHLDS_CONSOLE_VERSION ]]; then
+    say "No unique ReHLDS banner version found. ReHLDS engine identity will be unverified. See $PROBE_LOG or supply --rehlds-console-version."
+  fi
+fi
+
 if [[ -z $VALVE_VERSION ]]; then
   say "Attempting to obtain Valve's original HLDS console version token."
   PROBE_LOG="$RUNROOT/valve-version-probe.log"
@@ -807,6 +831,7 @@ for engine,manager in [('hlds','classic'),('rehlds','classic'),('rehlds','metamo
             raise SystemExit(f'GameDLL absent: {gc}')
         ec={'implementation':'Valve HLDS' if engine=='hlds' else 'ReHLDS',
             'version':engine_ver,'binary':'hlds_linux','modules':['engine_i486.so']}
+        # An empty token records a failed probe and prevents release-tag fallback.
         if engine=='rehlds': ec['console_version']=E['RICO_REHLDS_CONSOLE']
         mc={'implementation':'alliedmodders/metamod-hl1' if manager=='classic' else 'Metamod-R',
             'version':manager_ver,'binary':f'ricochet/addons/{manager}/dlls/metamod_i386.so',
