@@ -445,7 +445,7 @@ int main(int argc, char **argv) {
     assert(std::strcmp(info->logtag, runtime_audit ? "RUSTAUDIT" : engine_demo ? "RUSTENGINE" : "RUSTHELLO") == 0);
     if (engine_demo) {
         assert(std::strcmp(info->version, "0.1.0") == 0);
-        assert(std::strcmp(info->author, "metamod-rs contributors") == 0);
+        assert(std::strcmp(info->author, "metamod-sdk-rs contributors") == 0);
     }
     assert(info->loadable == PT_STARTUP && info->unloadable == PT_NEVER);
     assert(!attach(PT_ANYTIME, &functions, &globals, &game));

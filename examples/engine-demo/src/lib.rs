@@ -1,4 +1,4 @@
-use metamod_rs::prelude::*;
+use metamod_sdk_rs::prelude::*;
 use std::ffi::CString;
 
 static MESSAGE: &ConsoleName = console_name!(c"RUST_HELLO_MESSAGE");
@@ -15,7 +15,7 @@ struct EngineDemo {
 #[metamod_plugin(
     name = "Rust Engine Demo",
     version = "0.1.0",
-    author = "metamod-rs contributors",
+    author = "metamod-sdk-rs contributors",
     log_tag = "RUSTENGINE"
 )]
 impl Plugin for EngineDemo {

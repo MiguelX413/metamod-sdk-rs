@@ -1,4 +1,4 @@
-use metamod_rs::prelude::*;
+use metamod_sdk_rs::prelude::*;
 use std::{
     collections::HashMap,
     ffi::CString,
@@ -431,7 +431,7 @@ impl Audit {
 #[metamod_plugin(
     name = "Rust Runtime Audit",
     version = "0.1.0",
-    author = "metamod-rs contributors",
+    author = "metamod-sdk-rs contributors",
     log_tag = "RUSTAUDIT"
 )]
 impl Plugin for Audit {

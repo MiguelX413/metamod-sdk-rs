@@ -153,7 +153,7 @@ fn register(args: TokenStream, implementation: &mut ItemImpl) -> syn::Result<Tok
     let date = date.unwrap_or_else(|| LitCStr::new(c"", span));
     let log_tag = log_tag.map_or_else(|| name.clone(), |value| quote!(#value));
     implementation.items.push(syn::parse_quote! {
-        const METADATA: ::metamod_rs::Metadata = ::metamod_rs::Metadata {
+        const METADATA: ::metamod_sdk_rs::Metadata = ::metamod_sdk_rs::Metadata {
             name: #name,
             version: #version,
             author: #author,
@@ -174,7 +174,7 @@ fn register(args: TokenStream, implementation: &mut ItemImpl) -> syn::Result<Tok
     Ok(quote! {
         #implementation
         #track_manifest
-        ::metamod_rs::export_plugin!(#plugin);
+        ::metamod_sdk_rs::export_plugin!(#plugin);
     }
     .into())
 }

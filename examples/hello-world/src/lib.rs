@@ -1,4 +1,4 @@
-use metamod_rs::prelude::*;
+use metamod_sdk_rs::prelude::*;
 use std::ffi::CString;
 
 #[derive(Default)]

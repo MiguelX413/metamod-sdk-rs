@@ -1,21 +1,21 @@
-# metamod-rs
+# Metamod SDK for Rust
 
 A Rust SDK for native GoldSrc Metamod plugins with server-thread-owned state,
 typed game-DLL hooks, and scoped server access. Bindgen runs at build time.
 
 ## Write a Metamod plugin
 
-Set your library's crate type to `cdylib` and add `metamod-rs` as a
+Set your library's crate type to `cdylib` and add `metamod-sdk-rs` as a
 dependency. The default `macros` feature provides `#[metamod_plugin]`, which
 fills in metadata and exports the Metamod entry points.
 
 ```toml
 [dependencies]
-metamod-rs = { git = "https://github.com/MiguelX413/metamod-rs" }
+metamod-sdk-rs = { git = "https://github.com/MiguelX413/metamod-sdk-rs" }
 ```
 
 ```rust
-use metamod_rs::prelude::*;
+use metamod_sdk_rs::prelude::*;
 
 #[derive(Default)]
 struct MyPlugin {
@@ -121,7 +121,7 @@ Values and console output can contain non-UTF-8 bytes.
 For literals, `console_name!` and `cvar_value!` validate at compile time:
 
 ```rust
-use metamod_rs::prelude::*;
+use metamod_sdk_rs::prelude::*;
 
 static NAME: &ConsoleName = console_name!(c"MY_PLUGIN_SETTING");
 const DEFAULT: &CvarValue = cvar_value!(c"1");
@@ -323,7 +323,7 @@ delivery or pointer validity in every host and GameDLL combination.
   exposes the upstream field names, integer enums, and nullable C function
   pointers. The export macro checks its entry points against the generated
   function pointer types at compile time.
-- `metamod-rs` constructs one `Default` state value per startup attach attempt
+- `metamod-sdk-rs` constructs one `Default` state value per startup attach attempt
   and mutably borrows it for each callback. State survives map changes.
   See [hello-world](examples/hello-world/src/lib.rs) for registration and
   callback examples.

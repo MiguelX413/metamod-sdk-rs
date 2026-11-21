@@ -455,7 +455,7 @@ impl TraceSegment {
     /// if an endpoint is non-finite.
     ///
     /// ```compile_fail,E0080
-    /// use metamod_rs::TraceSegment;
+    /// use metamod_sdk_rs::TraceSegment;
     ///
     /// const SEGMENT: TraceSegment = match TraceSegment::new([0.0; 3], [f32::INFINITY, 0.0, 0.0]) {
     ///     Ok(segment) => segment,

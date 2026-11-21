@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ricochet / metamod-rs runtime audit lab for Ubuntu x86_64.
+# Ricochet / metamod-sdk-rs runtime audit lab for Ubuntu x86_64.
 # Creates disposable HLDS and ReHLDS installations; real servers are never patched in place.
 set -Eeuo pipefail
 umask 077
@@ -43,7 +43,7 @@ Usage: ./ricochet_audit_ubuntu.sh [options]
   --only RUNTIME_ID           Audit only this matrix row (repeatable)
   --failed-only               With --rerun, retry only rows that failed or were incomplete
   --plugin PATH                Prebuilt Linux i686 metamod-audit .so (required for fresh runs)
-  --repo-ref REF               metamod-rs branch/tag/commit (default master)
+  --repo-ref REF               metamod-sdk-rs branch/tag/commit (default master)
   --steam-user NAME            Use Steam account instead of anonymous if necessary.
                                SteamCMD handles password/Steam Guard interactively.
   --updated-gamedll PATH       Your *Linux i686* ricochet-updated .so (optional)
@@ -162,12 +162,12 @@ if (( WITH_NATIVE )); then
   # errors, sanitizer diagnostics, and a failed loader must fail this step.
   # Do not manufacture an exit_status of 0 or accept partial native evidence.
   [[ -f "$REPO/verify/audit/collect-native.sh" ]] || \
-    die "Selected metamod-rs revision lacks verify/audit/collect-native.sh; use commit 8f2673f or newer."
+    die "Selected metamod-sdk-rs revision lacks verify/audit/collect-native.sh; use commit 8f2673f or newer."
   grep -q -- '--native-fixture' "$REPO/verify/audit/collect-native.sh" && \
     grep -q -- '--require-native-suite' "$REPO/verify/audit/collect-native.sh" || \
-    die "Selected metamod-rs revision does not enforce the complete native suite; use commit 8f2673f or newer."
+    die "Selected metamod-sdk-rs revision does not enforce the complete native suite; use commit 8f2673f or newer."
   grep -q -- '--require-native-suite' "$REPO/verify/audit/runner.py" || \
-    die "Selected metamod-rs revision lacks strict native-suite import support."
+    die "Selected metamod-sdk-rs revision lacks strict native-suite import support."
   ( cd "$REPO" && bash verify/audit/collect-native.sh \
       "$RUNROOT/native-fixture" linux-i686-native-loader )
   # Check the collector's structured output, not just its process exit code.
@@ -229,7 +229,7 @@ report_file = root / 'report/report.json'
 native_file = root / 'native-fixture/report/report.json'
 
 lines = [
-    '# Ricochet / metamod-rs audit evidence summary', '',
+    '# Ricochet / metamod-sdk-rs audit evidence summary', '',
     f'- Audit runner checkout commit: `{commit}`',
     f'- Matrix: `{root / "matrix.json"}`',
     f'- Detailed runtime report: `{report_file}`', '',
@@ -356,7 +356,7 @@ if [[ -n $RERUN_SOURCE ]]; then
 
   [[ -d $WORKDIR ]] || die "Workspace does not exist: $WORKDIR"
   WORKDIR="$(cd "$WORKDIR" && pwd -P)"
-  REPO="$WORKDIR/metamod-rs"
+  REPO="$WORKDIR/metamod-sdk-rs"
   [[ -d $REPO/.git ]] || die "Missing source checkout: $REPO"
   command -v python3 >/dev/null || die "Python 3 is required for reruns"
   command -v git >/dev/null || die "Git is required for reruns"
@@ -505,7 +505,7 @@ mkdir -p "$WORKDIR"
 WORKDIR="$(cd "$WORKDIR" && pwd -P)"
 STEAMCMD_DIR="$WORKDIR/steamcmd"
 BASE="$WORKDIR/steam-legacy"
-REPO="$WORKDIR/metamod-rs"
+REPO="$WORKDIR/metamod-sdk-rs"
 DOWNLOADS="$WORKDIR/downloads"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 RUNROOT="$WORKDIR/runs/$RUN_ID"
@@ -613,9 +613,9 @@ done
 [[ $MAP_1 != "$MAP_2" ]] || { MAP_1="${DISCOVERED[1]}"; MAP_2="${DISCOVERED[2]}"; }
 say "Stock GameDLL: ricochet/$STOCK_REL; maps: $MAP_1, $MAP_2"
 
-say "Fetching the metamod-rs source and pinned upstream submodules."
+say "Fetching the metamod-sdk-rs source and pinned upstream submodules."
 if [[ ! -d "$REPO/.git" ]]; then
-  git clone --recurse-submodules https://github.com/MiguelX413/metamod-rs.git "$REPO"
+  git clone --recurse-submodules https://github.com/MiguelX413/metamod-sdk-rs.git "$REPO"
 fi
 (
   cd "$REPO"

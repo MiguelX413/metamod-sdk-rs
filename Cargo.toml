@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "metamod-sys",
-    "metamod-rs",
+    "metamod-sdk-rs",
     "metamod-macros",
     "metamod-audit",
     "examples/hello-world",
@@ -15,4 +15,4 @@ edition = "2024"
 authors = ["MiguelX413 <lbpgaming27@gmail.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
-repository = "https://github.com/MiguelX413/metamod-rs"
+repository = "https://github.com/MiguelX413/metamod-sdk-rs"

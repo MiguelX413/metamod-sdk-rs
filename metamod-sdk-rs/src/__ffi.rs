@@ -464,7 +464,7 @@ fn submit<P: Plugin>(event: Event) {
         // directly, after disabling callbacks and releasing the queue borrow.
         let _ = writeln!(
             io::stderr(),
-            "[metamod-rs] warning: plugin {:?} exceeded its dispatch budget of {MAX_EVENTS_PER_DISPATCH} events; user callbacks disabled",
+            "[metamod-sdk-rs] warning: plugin {:?} exceeded its dispatch budget of {MAX_EVENTS_PER_DISPATCH} events; user callbacks disabled",
             P::METADATA.name
         );
     }

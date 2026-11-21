@@ -44,7 +44,7 @@ impl PlayerSlot {
     /// negative indices return `None`. Use `Context::player_at` to check occupancy.
     ///
     /// ```compile_fail,E0080
-    /// use metamod_rs::PlayerSlot;
+    /// use metamod_sdk_rs::PlayerSlot;
     /// const SLOT: PlayerSlot = PlayerSlot::new(0).unwrap();
     /// ```
     pub const fn new(index: i32) -> Option<Self> {
@@ -113,7 +113,7 @@ impl PlayerUserId {
     /// represent unavailable or invalid IDs.
     ///
     /// ```compile_fail,E0080
-    /// use metamod_rs::PlayerUserId;
+    /// use metamod_sdk_rs::PlayerUserId;
     /// const USER_ID: PlayerUserId = PlayerUserId::new(-1).unwrap();
     /// ```
     pub const fn new(value: i32) -> Option<Self> {
@@ -196,14 +196,14 @@ impl PlayerId {
 /// Access to plugin services during a callback on the GoldSrc server thread.
 ///
 /// ```compile_fail
-/// use metamod_rs::Context;
+/// use metamod_sdk_rs::Context;
 /// fn retain<'a>(context: &'a Context<'_>) -> &'a Context<'static> {
 ///     context
 /// }
 /// ```
 ///
 /// ```compile_fail
-/// use metamod_rs::Context;
+/// use metamod_sdk_rs::Context;
 /// fn send_to_other_thread(context: &Context<'_>) {
 ///     std::thread::scope(|scope| {
 ///         let server = context.server();
@@ -317,7 +317,7 @@ impl<'callback> Context<'callback> {
     /// Access Metamod's logging and console utilities.
     ///
     /// ```
-    /// use metamod_rs::prelude::*;
+    /// use metamod_sdk_rs::prelude::*;
     ///
     /// fn announce(ctx: &Context<'_>, text: &std::ffi::CStr) {
     ///     let metamod = ctx.metamod();
