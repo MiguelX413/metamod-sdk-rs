@@ -44,6 +44,7 @@ Edit the generated rows before use. Keep only rows you intend to run, or select 
 | `engine.library_dirs` | Optional installation-relative directories to add to the staged library search path |
 | `maps`, `port`, `timeout_seconds` | One to eight map names, a dedicated loopback port (default 27045), and per-readiness or command timeout (default 45 seconds) |
 | `plugin` | Optional prebuilt plugin path relative to the configuration or absolute. Report its actual `audit_plugin_commit` and `sdk_commit` in the same row. An optional `plugin_sha256` pins the binary. |
+| `plugin_provenance` | Build provenance manifest for a prebuilt plugin. Required for certification. See below. |
 | `experimental` | Records experimental scope in the report without changing how failures are evaluated |
 | `unsupported_reason` | Optional evidence-backed exclusion. The runner records the row as unsupported and skips launch. |
 
@@ -52,6 +53,97 @@ Without `plugin`, `--build` compiles for the selected target into the output tre
 The runner validates x86 binary headers and maps, rejects source-tree symlinks and reparse points, then modifies only its copy. It routes the staged mod's platform `liblist.gam` entry through the selected manager and supplies isolated `mm_configfile`, `mm_pluginsfile`, and `mm_gamedll` settings. It starts a LAN server on loopback, waits for the first-frame readiness event, then verifies console round trips. Later maps are requested with `changelevel` and checked for a new activation event before replaying the suites. Normal exit uses `quit`; timed-out processes are terminated as necessary. Standard output and error are captured separately, each capped at 64 MiB. Available staged crash dumps are copied with count and size limits. Dumps handled by a system crash collector outside the staging directory need to be collected using that system's tools.
 
 Only use `--client-wait SECONDS` when an operator is available to connect a local game client. Neither player manipulation nor server shutdown uses a forced plugin unload. The server copy is removed after normal automated runs. An unavailable installation, missing readiness, failed console transport, process crash, protocol loss, sanitizer diagnostic, or FAIL yields a nonzero exit.
+
+## Compatibility certification
+
+Audit execution and certification are separate. Run the automated matrix
+from a clean runner checkout, writing the report outside the checkout. Keep
+`report.json` together with the per-runtime directories containing
+`events.jsonl` and the original transcripts. Then evaluate a profile:
+
+```sh
+python3 verify/audit/runner.py certify /path/to/report-dir/report.json core /path/to/certification
+```
+
+The command writes `certificate.json` and `certificate.md` in a new
+output directory. It evaluates each runtime independently. Exit status 0
+means every row is certified, 1 means one or more rows did not qualify,
+and 2 means invalid input or an output error. The certificate's schema,
+the audit protocol, and the profile policy each have a separate version.
+When requirements change, bump the affected profile's version. An earlier
+certificate still describes the earlier policy. Reevaluate the evidence
+under the new policy to claim the new version.
+
+| Profile | Mandatory observations in v1 |
+| --- | --- |
+| `core` | Initialization, command registration and quoted arguments, CVar round trip, owned string copies and size limits, invalid input handling, entity discovery and snapshots, line and hull traces, map activation and deactivation order, rejection of stale handles, and ordered shutdown and destructor entry. |
+| `player` | Everything in core, plus join, disconnect, an owned session snapshot, and same-slot reuse by clients classified by the engine as non-fake. Use `--client-wait` and connect, disconnect, and reconnect into the same slot on the same map. |
+| `extended` | Everything in player, plus classname keyvalue delivery, pre and post lag-compensation callbacks observed during gameplay, and repeated owned CVar reads. Choose a host and GameDLL that deliver those callbacks, and exercise gameplay with a local client. |
+
+All profiles need corroborated identities for the engine, Metamod, GameDLL,
+and plugin. The evaluator requires a complete, untruncated console capture,
+a successful `quit`, and a full itinerary with at least two distinct maps.
+Every requested transition needs ordered activation and deactivation plus
+a stale-handle rejection. Mandatory results must be plugin PASS records
+that match the report's sequence references and hash-checked event log.
+Manual assertions, imported reports, and synthetic native fixtures cannot
+supply those records. Keep native fixtures for separate FFI coverage.
+
+The profile is the applicability rule. Player and gameplay probes are
+outside core's mandatory scope. Hooks measured only by the native fixture
+are outside all three live profiles. If a profile requires a hook and the
+host never forwards it, that profile remains incomplete even if the host
+intentionally omits the hook. A skipped or unobserved hook does not
+establish whether the host supports it. Use a narrower profile to make a
+narrower claim.
+
+Each verdict has one of four outcomes, in this precedence order for live
+reports:
+
+- **FAILED** means an observed plugin failure, failed transition,
+  crash or sanitizer diagnostic, nonzero process exit, or a contradictory
+  runtime identity or artifact provenance.
+- **UNVERIFIED** means the evidence scope, binary identity, build
+  provenance, or event log cannot be verified. Imports and synthetic
+  fixtures are ineligible.
+- **INCOMPLETE** means live evidence is attributable but coverage or
+  lifecycle requirements are missing. A required SKIP or INCONCLUSIVE
+  result leaves a coverage gap.
+- **CERTIFIED** means the specific row satisfies all requirements of the
+  chosen profile version.
+
+For a prebuilt audit plugin, place a build manifest in the matrix row under
+`plugin_provenance`, or save it as a JSON file for the Ubuntu wrapper.
+Have the artifact build record these fields:
+
+```json
+{
+  "schema_version": 1,
+  "sha256": "<64 lowercase hex characters for the .so or .dll>",
+  "audit_plugin_commit": "<full 40-character Git commit>",
+  "sdk_commit": "<full 40-character Git commit>",
+  "working_tree_dirty": false
+}
+```
+
+The plugin and SDK revisions may differ from each other and from the runner
+checkout. The manifest is a build attestation. The evaluator checks its
+digest against the deployed artifact and rejects contradictory revision
+fields. It cannot independently derive source revisions from a binary or
+authenticate the manifest author. A runner-built plugin uses the clean
+checkout revisions recorded at build time. Reports collected before event
+log hashes and build provenance were captured may need to be recollected.
+
+```sh
+verify/audit/ricochet_audit_ubuntu.sh --plugin ./libmetamod_audit.so \
+  --plugin-provenance ./audit-build.json --certify core
+```
+
+On Windows, use the same Python `certify` command against the Windows live
+report. A certificate records the identities, hashes, profile, and evidence
+for the exact binaries and tested itinerary. It establishes neither
+compatibility across other configurations nor memory safety or compliance
+with all native host contracts.
 
 ## Console and manual protocol
 

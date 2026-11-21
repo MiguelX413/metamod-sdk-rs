@@ -1,6 +1,6 @@
 use metamod_sdk_rs::prelude::*;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     ffi::CString,
     fmt::Write as _,
     io::{self, Write as _},
@@ -78,6 +78,10 @@ const REUSE: Probe = Probe {
 const IDENTITY: Probe = Probe {
     id: "player.identity.v1",
     expected: "owned player snapshot matches the session",
+};
+const REAL_REUSE: Probe = Probe {
+    id: "player.real_reuse.v1",
+    expected: "non-fake clients disconnect and reuse a slot with distinct session identities",
 };
 const KEYS: Probe = Probe {
     id: "entity.keyvalue_hook.v1",
@@ -157,6 +161,10 @@ const PASSIVE: &[(Probe, &str)] = &[
     (DISCONNECT, "requires a client disconnection"),
     (REUSE, "requires a disconnect and same-slot join on one map"),
     (IDENTITY, "requires a client identity snapshot"),
+    (
+        REAL_REUSE,
+        "requires non-fake clients to reuse a slot on one map",
+    ),
     (KEYS, "requires a forwarded classname keyvalue"),
     (LAG_PRE, "requires a forwarded lag callback"),
     (LAG_POST, "requires a forwarded lag callback"),
@@ -178,7 +186,8 @@ struct Audit {
     activated: bool,
     deactivated: bool,
     world: Option<EntityHandle>,
-    disconnected: HashMap<PlayerSlot, PlayerId>,
+    disconnected: HashMap<PlayerSlot, (PlayerId, bool)>,
+    real_players: HashSet<PlayerId>,
     shutdown: bool,
 }
 
@@ -547,11 +556,13 @@ impl Plugin for Audit {
         self.activated = true;
         self.deactivated = false;
         self.disconnected.clear();
+        self.real_players.clear();
     }
 
     fn server_deactivate(&mut self, ctx: &mut Context<'_>) {
         self.deactivated = true;
         self.disconnected.clear();
+        self.real_players.clear();
         self.check(ctx, DEACTIVATE, true, "server_deactivate");
         if let Some(old) = self.world {
             self.check(
@@ -565,6 +576,13 @@ impl Plugin for Audit {
 
     fn player_join(&mut self, ctx: &mut Context<'_>, player: PlayerId) {
         let slot = player.slot();
+        let real = ctx
+            .entity_at(slot.get())
+            .ok()
+            .flatten()
+            .and_then(|entity| ctx.entity_info(entity))
+            .is_some_and(|info| info.kind == EntityKind::Client)
+            && ctx.is_player_current(player);
         self.result(
             Some(ctx),
             JOIN,
@@ -575,25 +593,42 @@ impl Plugin for Audit {
             },
             format!("player_join slot {slot}"),
         );
-        if let Some(previous) = self.disconnected.remove(&slot) {
+        let real_reuse = if let Some((previous, previous_real)) = self.disconnected.remove(&slot) {
             self.check(
                 ctx,
                 REUSE,
                 previous != player && !ctx.is_player_current(previous),
                 format!("slot {slot} reused"),
             );
-        }
+            real && previous_real && previous != player && !ctx.is_player_current(previous)
+        } else {
+            false
+        };
         match ctx.player_info(player) {
-            Some(info) => self.check(
-                ctx,
-                IDENTITY,
-                info.id == player,
-                format!(
-                    "slot {slot}, user ID present={}, auth ID present={}",
-                    info.user_id.is_some(),
-                    info.auth_id.is_some()
-                ),
-            ),
+            Some(info) => {
+                if real && info.id == player {
+                    self.real_players.retain(|id| id.slot() != slot);
+                    self.real_players.insert(player);
+                }
+                self.check(
+                    ctx,
+                    IDENTITY,
+                    info.id == player,
+                    format!(
+                        "slot {slot}, user ID present={}, auth ID present={}",
+                        info.user_id.is_some(),
+                        info.auth_id.is_some()
+                    ),
+                );
+                if real_reuse && info.id == player {
+                    self.check(
+                        ctx,
+                        REAL_REUSE,
+                        true,
+                        format!("non-fake slot {slot} reused"),
+                    );
+                }
+            }
             None => self.result(
                 Some(ctx),
                 IDENTITY,
@@ -604,8 +639,12 @@ impl Plugin for Audit {
     }
 
     fn player_disconnect(&mut self, ctx: &mut Context<'_>, player: PlayerId) {
+        let real = self.real_players.remove(&player);
         if self.disconnected.len() < 64 {
-            self.disconnected.insert(player.slot(), player);
+            self.disconnected.insert(
+                player.slot(),
+                (player, real && !ctx.is_player_current(player)),
+            );
         }
         self.check(
             ctx,

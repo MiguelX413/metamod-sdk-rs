@@ -19,6 +19,7 @@ import time
 import uuid
 
 from evidence import CONSOLE_EVIDENCE, CRASH, NATIVE_PREFIX, SANITIZER, identity, linux_mappings, windows_mappings
+import certification
 
 SCHEMA = 1
 REPO = Path(__file__).resolve().parents[2]
@@ -278,6 +279,7 @@ def aggregate(output, runtime, metadata, logs, manual=()):
         "console_version_observations": versions,
         "diagnostics": diagnostics, "protocol_warnings": warnings,
         "event_log": str(output / "events.jsonl"), "tests": results,
+        "event_log_sha256": digest(output / "events.jsonl"),
         "contract_findings": [{"id": contract, "classification": "Unverified host assumption",
                                "expected": expected, "observed": "requires evidence beyond public API behavior",
                                **contract_evidence.get(contract, {})}
@@ -526,9 +528,20 @@ def sample_rss(process, checkpoint):
 def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_only=False):
     runtime = {key: spec[key] for key in ("id", "os") if key in spec}
     runtime["architecture"] = "i686" if spec.get("os") == "linux" else "x86"
-    runtime["host"] = {"system": platform.system(), "release": platform.release(), "machine": platform.machine()}
+    runtime["host"] = {"system": platform.system(), "release": platform.release(),
+                       "version": platform.version(), "machine": platform.machine()}
+    if runtime["host"]["system"] == "Linux":
+        try:
+            os_release = platform.freedesktop_os_release()
+            runtime["host"]["distribution"] = {key: os_release[key] for key in ("ID", "VERSION_ID")
+                                               if key in os_release}
+        except OSError:
+            pass  # Some Linux hosts have no distribution metadata.
     runtime["components"] = {}
     runtime["experimental"] = spec.get("experimental", False)
+    revision = version_metadata()
+    runtime["runner_revision"] = {"commit": revision.get("sdk_commit"),
+                                  "working_tree_dirty": revision.get("working_tree_dirty")}
     metadata = {"run_id": run_id, "executed": False, "execution": "MISSING", "exit_status": None}
     if reason := spec.get("unsupported_reason"):
         runtime["unsupported_reason"] = reason
@@ -592,8 +605,11 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
         if "plugin" in spec:
             plugin = (config_dir / spec["plugin"]).resolve(strict=True)
             provenance = {key: spec.get(key) for key in ("audit_plugin_commit", "sdk_commit")}
+            if "plugin_provenance" in spec:
+                provenance["artifact_manifest"] = spec["plugin_provenance"]
         elif allow_build:
             provenance = version_metadata()
+            provenance["built_by_runner"] = True
             build_target = output.resolve() / "build"
             command = ["cargo", "build", "--locked", "--release", "--target", target, "-p", "metamod-audit", "--target-dir", str(build_target)]
             with (output / "build.log").open("wb") as log:
@@ -606,7 +622,8 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
         plugin_hash = digest(plugin)
         if spec.get("plugin_sha256", plugin_hash).lower() != plugin_hash:
             raise ValueError("plugin hash differs from the configured artifact")
-        runtime["plugin"] = {**provenance, "sha256": plugin_hash, "target": target}
+        runtime["plugin"] = {**provenance, "implementation": "metamod-audit", "binary": plugin.name,
+                             "sha256": plugin_hash, "target": target}
         # Dereferencing symlinks during copy could escape the source tree.
         # Reject junctions too, including on Python versions without is_junction.
         for directory, dirs, files in os.walk(installation):
@@ -988,6 +1005,10 @@ def main():
     diff.add_argument("baseline", type=Path)
     diff.add_argument("candidate", nargs="?", type=Path)
     diff.add_argument("--allowances", type=Path)
+    certify = sub.add_parser("certify", help="evaluate a live report against a versioned compatibility profile")
+    certify.add_argument("report", type=Path)
+    certify.add_argument("profile", choices=certification.PROFILES)
+    certify.add_argument("output", type=Path, help="new directory for certificate.json and certificate.md")
     args = parser.parse_args()
     run_id = str(uuid.uuid4())
     try:
@@ -1001,6 +1022,13 @@ def main():
                        else compare_runtimes(baseline, allowances))
             print(json.dumps(changes, indent=2))
             return int(any(change.get("severity") in {"failure", "coverage loss"} for change in changes))
+        if args.command == "certify":
+            report = json.loads(args.report.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+            certificate = certification.evaluate(report, args.report, args.profile, SCHEMA, parse_event)
+            args.output.mkdir(parents=True)
+            dump(args.output / "certificate.json", certificate)
+            (args.output / "certificate.md").write_text(certification.markdown(certificate), encoding="utf-8")
+            return int(not certificate["all_certified"])
         if args.command == "run":
             config_path = args.config.resolve(strict=True)
             config = load(config_path)

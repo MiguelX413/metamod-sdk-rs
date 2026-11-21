@@ -9,6 +9,8 @@ HERE="${BASH_SOURCE[0]}"
 WORKDIR="${HOME}/ricochet-audit-lab"
 REPO_REF="master"
 AUDIT_PLUGIN=""
+PLUGIN_PROVENANCE=""
+CERTIFY_PROFILE=""
 STEAM_USER=""
 UPDATED_DLL=""
 VALVE_VERSION=""
@@ -43,6 +45,8 @@ Usage: ./ricochet_audit_ubuntu.sh [options]
   --only RUNTIME_ID           Audit only this matrix row (repeatable)
   --failed-only               With --rerun, retry only rows that failed or were incomplete
   --plugin PATH                Prebuilt Linux i686 metamod-audit .so (required for fresh runs)
+  --plugin-provenance PATH     Build provenance JSON for the prebuilt plugin
+  --certify PROFILE            Evaluate the live report after the audit
   --repo-ref REF               metamod-sdk-rs branch/tag/commit (default master)
   --steam-user NAME            Use Steam account instead of anonymous if necessary.
                                SteamCMD handles password/Steam Guard interactively.
@@ -92,15 +96,16 @@ HELP
 
 while (($#)); do
   case "$1" in
-    --workdir|--plugin|--repo-ref|--steam-user|--updated-gamedll|--valve-version|--rehlds-console-version|--classic-console-version|--metamodr-console-version|--rehlds-zip|--metamodr-zip|--classic-zip|--map-cycles|--client-wait)
+    --workdir|--plugin|--plugin-provenance|--certify|--repo-ref|--steam-user|--updated-gamedll|--valve-version|--rehlds-console-version|--classic-console-version|--metamodr-console-version|--rehlds-zip|--metamodr-zip|--classic-zip|--map-cycles|--client-wait)
       (($# >= 2)) || { echo "Missing value: $1" >&2; exit 2; }
       key="$1"; val="$2"; shift 2
       case "$key" in
-        --plugin|--repo-ref|--steam-user|--updated-gamedll|--valve-version|--rehlds-console-version|--classic-console-version|--metamodr-console-version|--rehlds-zip|--metamodr-zip|--classic-zip)
+        --plugin|--plugin-provenance|--repo-ref|--steam-user|--updated-gamedll|--valve-version|--rehlds-console-version|--classic-console-version|--metamodr-console-version|--rehlds-zip|--metamodr-zip|--classic-zip)
           RERUN_DISALLOWED+=("$key");;
       esac
       case "$key" in
         --workdir) WORKDIR="$val";; --plugin) AUDIT_PLUGIN="$val";; --repo-ref) REPO_REF="$val";;
+        --plugin-provenance) PLUGIN_PROVENANCE="$val";; --certify) CERTIFY_PROFILE="$val";;
         --steam-user) STEAM_USER="$val";; --updated-gamedll) UPDATED_DLL="$val";;
         --valve-version) VALVE_VERSION="$val";;
         --rehlds-console-version) REHLDS_CONSOLE_VERSION="$val";;
@@ -151,6 +156,8 @@ done
 say() { printf '\n[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 trap 'echo "ERROR near line $LINENO. Existing files and partial logs are preserved." >&2' ERR
+[[ -z $CERTIFY_PROFILE ]] || (( ! PREPARE_ONLY )) || die "--certify requires a live run"
+[[ -z $PLUGIN_PROVENANCE || -r $PLUGIN_PROVENANCE ]] || die "Cannot read --plugin-provenance"
 
 # A single validation path is used by initial provisioning and by reruns.
 run_native_suite() {
@@ -328,11 +335,21 @@ print(f'Wrote evidence summary: {output}')
 PY_SUMMARY
 
 say "Finished: audit exit status $STATUS"
+CERTIFY_STATUS=0
+if [[ -n $CERTIFY_PROFILE ]]; then
+  if python3 "$REPO/verify/audit/runner.py" certify "$RUNROOT/report/report.json" \
+    "$CERTIFY_PROFILE" "$RUNROOT/certification"; then
+    say "Certification passed: $RUNROOT/certification/certificate.md"
+  else
+    CERTIFY_STATUS=$?
+    say "Certification exited with status $CERTIFY_STATUS. Inspect $RUNROOT/certification."
+  fi
+fi
 echo "Setup and audit files: $RUNROOT"
 echo "Matrix: $RUNROOT/matrix.json"
 echo "Report: $RUNROOT/report/report.md"
 echo "Evidence summary: $RUNROOT/audit-summary.md"
-echo "Reports with FAIL, INCONCLUSIVE host identity, missing callbacks, or crashes are not certified."
+echo "Audit completion is separate from certification. Use --certify to evaluate a profile."
 if ((STATUS != 0)); then
   echo "Some configurations did not pass; inspect the reports and per-runtime logs."
   if (( ! PREPARE_ONLY )) && [[ -t 0 ]]; then
@@ -346,7 +363,7 @@ if ((STATUS != 0)); then
     fi
   fi
 fi
-exit "$STATUS"
+exit "$((STATUS != 0 ? STATUS : CERTIFY_STATUS))"
 }
 
 # --rerun is deliberately reached before apt, SteamCMD, git fetch, release
@@ -807,6 +824,7 @@ fi
 
 say "Generating a matrix from real installed paths, versions, and available assets."
 export RICO_RUNROOT="$RUNROOT" RICO_PLUGIN="$PLUGIN" RICO_PLUGIN_SHA="$PLUGIN_SHA" \
+  RICO_PLUGIN_PROVENANCE="$PLUGIN_PROVENANCE" \
   RICO_AUDIT_COMMIT="$AUDIT_COMMIT" RICO_STOCK_REL="$STOCK_REL" \
   RICO_MAP_1="$MAP_1" RICO_MAP_2="$MAP_2" \
   RICO_VALVE_VERSION="$VALVE_VERSION" RICO_REHLDS_VERSION="$REHLDS_VER" \
@@ -819,6 +837,8 @@ import hashlib,json,os,pathlib
 E=os.environ
 root=pathlib.Path(E['RICO_RUNROOT'])
 stock=E['RICO_STOCK_REL']
+manifest_path=E['RICO_PLUGIN_PROVENANCE']
+provenance=json.loads(pathlib.Path(manifest_path).read_text(encoding='utf-8')) if manifest_path else None
 rows=[]
 updated=E['RICO_UPDATED']=='1'
 for engine,manager in [('hlds','classic'),('rehlds','classic'),('rehlds','metamod-r')] + ([('hlds','metamod-r')] if E['RICO_EXPERIMENTAL']=='1' else []):
@@ -846,6 +866,8 @@ for engine,manager in [('hlds','classic'),('rehlds','classic'),('rehlds','metamo
             'maps':[E['RICO_MAP_1'],E['RICO_MAP_2']],
             'map_cycles':int(E['RICO_CYCLES']), 'timeout_seconds':60,
             'port':27045,'experimental':engine=='hlds' and manager=='metamod-r'})
+        if provenance is not None:
+            rows[-1]['plugin_provenance']=provenance
 (root/'matrix.json').write_text(json.dumps({'schema_version':1,'runtimes':rows},indent=2)+'\n')
 (root/'sources.json').write_text(json.dumps({
     'repo_commit':E['RICO_AUDIT_COMMIT'],
