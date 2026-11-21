@@ -244,8 +244,17 @@ find your host libclang.
 ```sh
 git submodule update --init
 rustup target add i686-unknown-linux-gnu
-cargo build --locked --release --target i686-unknown-linux-gnu -p hello-world
+(cd examples/hello-world && cargo build --locked --release)
 ```
+
+Each example and the audit plugin includes its own `.cargo/config.toml`
+that defaults to Linux i686. Run Cargo from the plugin directory to use
+that setting. For the live audit runner, use
+`(cd metamod-audit && cargo build --locked --release)`. In this workspace,
+the outputs go to `target/i686-unknown-linux-gnu/release/`.
+When copying an example as a template, include its `.cargo` directory.
+Cargo commands run from the workspace root use the host target by default.
+An explicit `--target` overrides the plugin's default.
 
 ### Windows x86
 
@@ -287,7 +296,9 @@ line and shared library.
 
 ### Engine demo
 
-Build the same way with `-p engine-demo`. Use `libengine_demo.so` on Linux or
+On Linux, run `(cd examples/engine-demo && cargo build --locked --release)`.
+On Windows, build
+with `-p engine-demo`. Use `libengine_demo.so` on Linux or
 `engine_demo.dll` on Windows in the corresponding `plugins.ini` entry.
 `meta list` shows `Rust Engine Demo`, and the console controls become available
 on the first frame. The hello-world example uses Cargo metadata, while
