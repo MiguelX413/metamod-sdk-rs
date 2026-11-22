@@ -380,7 +380,7 @@ python3 "$NEW/diagnose.py" "$MMR/launch.json" gdb >"$NEW/metamod-r-gdb.log" 2>&1
 
 For Valve HLDS, return `launch.json`, the original stdout/stderr, the open
 trace, and the staged `server/ricochet/liblist.gam` and
-`server/ricochet/addons/metamod-audit/config.ini`. The open trace should
+configuration file named by `mm_configfile` in `launch.json`. The open trace should
 show which listing the engine opened and whether it tried loading the
 staged Metamod library before reporting `controller.cfg`. This distinguishes
 engine-side library selection from later Metamod GameDLL resolution.
@@ -498,3 +498,34 @@ use bootstrap `--rerun` to substitute the new binary into an old run.
 Ubuntu only needs the prebuilt binaries, Python and runtime dependencies
 for these commands. If the stock row still faults before readiness,
 collect the GDB evidence described above for the new artifact.
+
+### Retesting the two Valve HLDS configurations
+
+On Linux Valve HLDS rows, the runner puts its configuration and plugin
+list under `addons/mm_audit/` so legacy `+localinfo` parsing can read
+their full paths. When classic Metamod is configured as
+`metamod_i386.so`, the runner stages a byte-identical `metamod.so` copy
+beside it, selects that path in `liblist.gam`, and verifies the hash and
+process mapping of the actual loaded path. The plugin itself still lives
+at `addons/metamod-audit/libmetamod_audit.so` and uses the saved SHA-256
+and build provenance. ReHLDS keeps its existing staging layout.
+
+Use a clean checkout containing the runner fix and the original six-row
+matrix. These commands create a fresh run from the saved installations
+and prebuilt plugin. No rebuild is needed.
+
+```bash
+SDK="$HOME/metamod-sdk-rs-audit-fix"
+OLD="$HOME/ricochet-audit-lab/runs/ACTUAL_RUN_ID"
+OUT="$(mktemp -d "$HOME/ricochet-valve-retest.XXXXXX")"
+
+python3 "$SDK/verify/audit/runner.py" run "$OLD/matrix.json" "$OUT/audit" \
+  --platform linux --only linux-hlds-classic-stock --only linux-hlds-classic-updated
+
+python3 "$SDK/verify/audit/runner.py" certify "$OUT/audit/report.json" core "$OUT/certification"
+```
+
+Check both rows in `certificate.md` for **CERTIFIED** under core v2.
+Keep the two commands separate so a failed audit can still produce a
+certification evaluation. The bootstrap's `--rerun` keeps its pinned
+runner revision, so use the direct command above to test a new revision.

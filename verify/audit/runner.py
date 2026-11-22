@@ -472,14 +472,32 @@ def configure(stage, spec):
     mod = inside(stage, spec["mod"])
     liblist = mod / "liblist.gam"
     audit_dir = mod / "addons" / "metamod-audit"
+    system = spec["os"]
+    valve_linux = system == "linux" and spec["engine"]["implementation"].strip().casefold() == "valve hlds"
+    # Legacy Valve HLDS can truncate hyphenated +localinfo paths.
+    config_dir = mod / "addons" / "mm_audit" if valve_linux else audit_dir
     if audit_dir.exists():
         raise ValueError("installation already contains the reserved addons/metamod-audit directory")
+    if config_dir != audit_dir and config_dir.exists():
+        raise ValueError("installation already contains the reserved addons/mm_audit directory")
     audit_dir.mkdir(parents=True)
-    system = spec["os"]
+    config_dir.mkdir(parents=True, exist_ok=True)
     name = "metamod_audit.dll" if system == "windows" else "libmetamod_audit.so"
     deployed_plugin = audit_dir / name
     shutil.copy2(spec["_plugin"], deployed_plugin)
-    manager = inside(stage, spec["metamod"]["binary"]).relative_to(mod).as_posix()
+    manager_binary = inside(stage, spec["metamod"]["binary"])
+    if (valve_linux and "metamod-r" not in spec["metamod"]["implementation"].casefold()
+            and manager_binary.name == "metamod_i386.so"):
+        # Valve build 8684 looks for this basename. Use a regular copy so
+        # the alias remains attributable by the normal process mapping checks.
+        alias = manager_binary.with_name("metamod.so")
+        if alias.exists():
+            if not alias.is_file() or digest(alias) != digest(manager_binary):
+                raise ValueError(f"Valve HLDS Metamod alias conflicts with {alias}")
+        else:
+            shutil.copy2(manager_binary, alias)
+        manager_binary = alias
+    manager = manager_binary.relative_to(mod).as_posix()
     game = inside(stage, spec["gamedll"]["binary"]).relative_to(mod).as_posix()
     if not all(re.fullmatch(r"[A-Za-z0-9_./-]+", path) for path in (manager, game)):
         raise ValueError("manager and GameDLL paths must be console-safe paths inside the mod")
@@ -490,13 +508,14 @@ def configure(stage, spec):
     if count != 1:
         raise ValueError("liblist.gam must contain exactly one active platform GameDLL entry")
     liblist.write_bytes(patched)
-    plugin_file = "addons/metamod-audit/plugins.ini"
+    config_relative = config_dir.relative_to(mod).as_posix()
+    plugin_file = f"{config_relative}/plugins.ini"
     (mod / plugin_file).write_text(f"{'win32' if system == 'windows' else 'linux'} addons/metamod-audit/{name}\n", encoding="ascii")
     # An isolated Metamod configuration prevents copied options from
     # redirecting logging, plugin loading, or GameDLL resolution.
-    config_file = "addons/metamod-audit/config.ini"
+    config_file = f"{config_relative}/config.ini"
     (mod / config_file).write_text(f"gamedll {game}\n", encoding="ascii")
-    return config_file, plugin_file, game, deployed_plugin
+    return config_file, plugin_file, game, deployed_plugin, manager_binary
 
 
 def is_dump_header(header, size):
@@ -661,13 +680,18 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
             stage = Path(temp).resolve() / "server"
             runtime["staged_root"] = str(stage)
             shutil.copytree(installation, stage)
-            settings, plugins, game, deployed_plugin = configure(stage, {**spec, "_plugin": plugin})
+            settings, plugins, game, deployed_plugin, loaded_manager = configure(stage, {**spec, "_plugin": plugin})
             for identity in runtime["components"].values():
                 if digest(inside(stage, identity["binary"])) != identity["sha256"]:
                     raise ValueError(f"source changed while staging {identity['binary']}")
             for name, expected_hash in modules.items():
                 if digest(inside(stage, name)) != expected_hash:
                     raise ValueError(f"source changed while staging {name}")
+            manager_identity = runtime["components"]["metamod"]
+            if digest(loaded_manager) != manager_identity["sha256"]:
+                raise ValueError("loaded Metamod alias differs from the configured artifact")
+            if loaded_manager != inside(stage, manager_identity["binary"]):
+                manager_identity["loaded_binary"] = loaded_manager.relative_to(stage).as_posix()
             if digest(deployed_plugin) != plugin_hash:
                 raise ValueError("plugin changed while staging")
             binary = inside(stage, spec["engine"]["binary"])
@@ -707,6 +731,7 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
                     console.wait("status", timeout, after=before)
                     expected = {key: [inside(stage, value["binary"])]
                                 for key, value in runtime["components"].items()}
+                    expected["metamod"] = [loaded_manager]
                     expected["engine"].extend(inside(stage, name) for name in modules)
                     expected["plugin"] = [deployed_plugin]
                     inspect_mappings = linux_mappings if system == "linux" else windows_mappings

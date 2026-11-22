@@ -330,6 +330,72 @@ class WindowsMappingTests(unittest.TestCase):
 
 @unittest.skipUnless(platform.system() == "Linux", "fake launcher uses a POSIX shebang")
 class ExecutionTests(unittest.TestCase):
+    def test_valve_hlds_stages_alias_and_legacy_safe_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            mod = source / "ricochet"
+            manager = mod / "addons/classic/dlls/metamod_i386.so"
+            manager.parent.mkdir(parents=True)
+            manager.write_bytes(b"classic manager")
+            (mod / "maps").mkdir()
+            (mod / "maps/rc_arena.bsp").touch()
+            original = b'gamedll_linux "stock.so"\n'
+            (mod / "liblist.gam").write_bytes(original)
+            (mod / "stock.so").touch()
+            (source / "hlds_linux").touch()
+            plugin = root / "libmetamod_audit.so"
+            plugin.write_bytes(b"prebuilt plugin")
+            spec = {
+                "id": "fixture", "os": "linux", "installation": "source", "mod": "ricochet",
+                "maps": ["rc_arena"], "plugin": plugin.name, "plugin_sha256": runner.digest(plugin),
+                "engine": {"implementation": "Valve HLDS", "version": "8684", "binary": "hlds_linux"},
+                "metamod": {"implementation": "alliedmodders/metamod-hl1", "version": "1.21.1-am",
+                            "binary": manager.relative_to(source).as_posix()},
+                "gamedll": {"implementation": "Stock Ricochet", "version": "1", "binary": "ricochet/stock.so"},
+            }
+            for engine, expected_name, config_dir in (
+                ("Valve HLDS", "metamod.so", "mm_audit"),
+                ("ReHLDS", "metamod_i386.so", "metamod-audit"),
+            ):
+                output = root / engine
+                output.mkdir()
+                with patch.object(runner, "check_binary"):
+                    record = runner.run_one({**spec, "engine": {**spec["engine"], "implementation": engine}},
+                                            root, output, "fixture-run", False, 0, prepare_only=True)
+                self.assertEqual(record["execution"], "PREPARED", record)
+                launch = runner.load(output / "launch.json")
+                stage = Path(launch["cwd"])
+                staged_mod = stage / "ricochet"
+                self.assertIn(f'addons/classic/dlls/{expected_name}', (staged_mod / "liblist.gam").read_text())
+                manager_identity = record["runtime"]["components"]["metamod"]
+                loaded = stage / manager_identity.get("loaded_binary", manager_identity["binary"])
+                self.assertEqual(loaded.name, expected_name)
+                self.assertEqual(runner.digest(loaded), manager_identity["sha256"])
+                self.assertFalse(loaded.is_symlink())
+                if engine == "ReHLDS":
+                    self.assertFalse(loaded.with_name("metamod.so").exists())
+                for option, filename in (("mm_configfile", "config.ini"), ("mm_pluginsfile", "plugins.ini")):
+                    self.assertEqual(launch["argv"][launch["argv"].index(option) + 1],
+                                     f"addons/{config_dir}/{filename}")
+                plugins = staged_mod / f"addons/{config_dir}/plugins.ini"
+                self.assertEqual(plugins.read_text(), "linux addons/metamod-audit/libmetamod_audit.so\n")
+                self.assertEqual(runner.digest(staged_mod / "addons/metamod-audit" / plugin.name),
+                                 spec["plugin_sha256"])
+            self.assertEqual((mod / "liblist.gam").read_bytes(), original)
+            self.assertFalse(manager.with_name("metamod.so").exists())
+            self.assertFalse((mod / "addons/mm_audit").exists())
+            self.assertFalse((mod / "addons/metamod-audit").exists())
+            alias = manager.with_name("metamod.so")
+            alias.write_bytes(b"different manager")
+            output = root / "conflict"
+            output.mkdir()
+            with patch.object(runner, "check_binary"):
+                record = runner.run_one(spec, root, output, "fixture-run", False, 0, prepare_only=True)
+            self.assertEqual(record["execution"], "UNAVAILABLE")
+            self.assertIn("Metamod alias conflicts", record["error"])
+            self.assertEqual(alias.read_bytes(), b"different manager")
+
     def test_linux_mappings_use_file_identity(self):
         executable = Path("/proc/self/exe").resolve(strict=True)
         with tempfile.NamedTemporaryFile() as data:
