@@ -157,7 +157,7 @@ and immediate portable slot release remain unsupported by the evidence.
 ## Remaining verification
 
 Win32 and other manager and GameDLL combinations need their own
-observations. A transition before stock GameDLL private data exists remains untested. These tests are separate from compatibility certification.
+observations. A transition before stock Ricochet GameDLL private data exists remains untested with that GameDLL. The test GameDLL covers the early allocation boundary below. These tests are separate from compatibility certification.
 
 ## Rust SDK and Ricochet adapter
 
@@ -272,3 +272,39 @@ bash verify/fake-client/run-linux.sh /path/to/saved/installs \
 Transfer the built shared object to the audit host before running the
 script. The tested binary SHA-256 was
 `7be2a1b81bfc143505fdf3ae310e8ff96926ed58197b188fa798484b7643836c`.
+
+## Live reentry during engine allocation
+
+The test GameDLL forced a synchronous map change from
+`ClientUserInfoChanged` inside `pfnCreateFakeClient`. At callback entry
+the edict had `FL_FAKECLIENT` set and no private player data. The fixture
+tolerated the resulting disconnect and confirmed that `rc_deathmatch`
+activated before the interrupted user-info callback returned. It made
+no further access to the old edict after requesting the transition.
+
+| Linux i686 runtime with classic Metamod 1.21.1-am | Allocation result | SDK session |
+| --- | --- | --- |
+| Valve HLDS build 8684 | `SetupIncomplete` | No `PlayerId` published |
+| ReHLDS 3.15.0.896-dev | `SetupIncomplete` | No `PlayerId` published |
+
+On both engines, the adapter setup closure was never entered. Neither
+client slot had a tracked player when allocation returned or on the next
+frame. The SDK emitted no join, and both servers confirmed the destination
+map and exited cleanly. The GameDLL fixture exercised this boundary with
+real engine binaries. Stock Ricochet still requires private player data
+before disconnect and was not used for this early-allocation test.
+
+```bash
+bash verify/fake-client/build-linux-i686.sh /tmp/fake_fixture.so
+cargo build --locked --release --target i686-unknown-linux-gnu \
+  -p metamod-ricochet --example ricochet_setup_reentry
+bash verify/fake-client/run-linux.sh /path/to/saved/installs \
+  /path/to/libricochet_setup_reentry.so /path/to/new-allocation-run \
+  allocation-reentry /path/to/fake_fixture.so
+```
+
+Transfer both shared objects to the audit host before running the script.
+The tested GameDLL SHA-256 was
+`c9eec5062758f05eac73c641104033018cd300583d5100980b0c87dd5c2cce40`.
+The tested Rust probe SHA-256 was
+`d66d974fc9244f384876e5f640ef2f4701a9fa52ffcc350b0914e4a43998910b`.

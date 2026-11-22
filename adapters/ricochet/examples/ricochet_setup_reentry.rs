@@ -55,31 +55,51 @@ impl Plugin for Probe {
         let server = ctx.server();
         if !self.attempted {
             self.attempted = true;
-            let Some((queue, execute)) = COMMANDS.get() else {
-                self.finished = true;
-                return server.print(c"FAKE_REENTRY FAIL missing engine callbacks\n");
-            };
-            let mut executed = false;
-            // SAFETY: This test runs only on the verified disposable stock
-            // Ricochet snapshots. Complete native setup before executing a
-            // fixed command; never address the edict after changelevel.
-            let result = unsafe {
-                server.create_fake_client(c"SDKReentryProbe", |setup| {
-                    if !(setup.connect(c"loopback")
-                        && setup.put_in_server()
-                        && setup.restore_fake_flag())
-                    {
-                        return false;
-                    }
-                    server
-                        .print(c"FAKE_REENTRY EVENT native setup complete; entering changelevel\n");
-                    queue(c"changelevel rc_deathmatch\n".as_ptr());
-                    execute();
-                    executed = true;
-                    true
-                })
-            };
-            self.incomplete = executed && matches!(result, Err(FakeClientError::SetupIncomplete));
+            if std::env::var_os("METAMOD_FAKE_ALLOCATION_REENTRY").is_some() {
+                let mut entered_setup = false;
+                // SAFETY: Only the disposable GameDLL fixture enables this mode.
+                // It tolerates disconnect before private data exists. The SDK
+                // must stop before this closure can touch the retired slot.
+                let result = unsafe {
+                    server.create_fake_client(c"SDKReentryProbe", |_| {
+                        entered_setup = true;
+                        false
+                    })
+                };
+                self.incomplete =
+                    !entered_setup && matches!(result, Err(FakeClientError::SetupIncomplete));
+                if self.incomplete {
+                    server.print(c"FAKE_REENTRY EVENT adapter setup closure was not entered\n");
+                }
+            } else {
+                let Some((queue, execute)) = COMMANDS.get() else {
+                    self.finished = true;
+                    return server.print(c"FAKE_REENTRY FAIL missing engine callbacks\n");
+                };
+                let mut executed = false;
+                // SAFETY: This test runs only on the verified disposable stock
+                // Ricochet snapshots. Complete native setup before executing a
+                // fixed command; never address the edict after changelevel.
+                let result = unsafe {
+                    server.create_fake_client(c"SDKReentryProbe", |setup| {
+                        if !(setup.connect(c"loopback")
+                            && setup.put_in_server()
+                            && setup.restore_fake_flag())
+                        {
+                            return false;
+                        }
+                        server.print(
+                            c"FAKE_REENTRY EVENT native setup complete; entering changelevel\n",
+                        );
+                        queue(c"changelevel rc_deathmatch\n".as_ptr());
+                        execute();
+                        executed = true;
+                        true
+                    })
+                };
+                self.incomplete =
+                    executed && matches!(result, Err(FakeClientError::SetupIncomplete));
+            }
             if !self.incomplete || !slots_empty(ctx) || self.activations != 1 {
                 self.finished = true;
                 return server.print(c"FAKE_REENTRY FAIL setup returned unexpected evidence\n");

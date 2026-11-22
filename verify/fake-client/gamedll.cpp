@@ -1,12 +1,16 @@
 // Dedicated, disposable test GameDLL. No real clients or gameplay.
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <extdll.h>
 
 static enginefuncs_t engine;
 static globalvars_t *globals;
 static bool attempted;
 static bool active;
+static bool allocation_reentry;
+static bool change_requested;
+static int map_activations;
 static edict_t *prepared;
 static edict_t *last_userinfo;
 static edict_t *last_disconnected;
@@ -27,6 +31,22 @@ static void userinfo(edict_t *entity, char *) {
     ++userinfo_calls;
     last_userinfo = entity;
     log_client("userinfo", entity);
+    if (!allocation_reentry || change_requested) return;
+    change_requested = true;
+    if (entity->pvPrivateData || !(entity->v.flags & FL_FAKECLIENT) || map_activations != 1) {
+        std::puts("FAKE_REENTRY FAIL allocation callback lacked an uninitialized fake client");
+        std::fflush(stdout);
+        return;
+    }
+    std::puts("FAKE_REENTRY EVENT userinfo during allocation; private data absent");
+    std::fflush(stdout);
+    engine.pfnServerCommand("changelevel rc_deathmatch\n");
+    engine.pfnServerExecute();
+    // The original edict can belong to the retired arena. Do not read it.
+    std::puts(map_activations == 2
+        ? "FAKE_REENTRY EVENT second map activated before userinfo returned"
+        : "FAKE_REENTRY FAIL changelevel did not reenter during allocation");
+    std::fflush(stdout);
 }
 
 static qboolean connect(edict_t *entity, const char *, const char *, char reason[128]) {
@@ -45,6 +65,12 @@ static void disconnect(edict_t *entity) {
     ++disconnect_calls;
     last_disconnected = entity;
     log_client("disconnect", entity);
+    if (allocation_reentry) {
+        std::puts(entity->pvPrivateData
+            ? "FAKE_REENTRY FAIL disconnect unexpectedly found private data"
+            : "FAKE_REENTRY EVENT fixture disconnected client without private data");
+        std::fflush(stdout);
+    }
     if (prepared == entity) prepared = nullptr;
 }
 
@@ -55,11 +81,11 @@ static void keyvalue(edict_t *entity, KeyValueData *data) {
     data->fHandled = 1;
 }
 
-static void activate(edict_t *, int, int) { active = true; }
+static void activate(edict_t *, int, int) { active = true; ++map_activations; }
 static void deactivate() { active = false; }
 
 static void start_frame() {
-    if (attempted || !active) return;
+    if (allocation_reentry || attempted || !active) return;
     attempted = true;
     const int capacity = globals->maxClients;
     if (capacity < 2 || capacity > 8) {
@@ -119,6 +145,7 @@ static void start_frame() {
 extern "C" void GiveFnptrsToDll(enginefuncs_t *functions, globalvars_t *vars) {
     engine = *functions;
     globals = vars;
+    allocation_reentry = std::getenv("METAMOD_FAKE_ALLOCATION_REENTRY") != nullptr;
 }
 
 // An empty world is sufficient. Unknown map entities are discarded by the host.

@@ -73,8 +73,9 @@ return `EngineError::Unavailable`.
    disconnect, slot reuse, and map transitions with synthetic fixtures.
    Live Linux i686 tests passed on both engines for a map change with
    pending removal, same-slot reuse, and confirmed replacement removal.
-   Both engines also passed forced reentry after native setup and before
-   SDK session publication. Win32 remains pending. [Live map-change results](fake-client-lifecycle.md#live-map-change-with-a-pending-removal)
+   Both engines passed forced reentry during allocation with the test
+   GameDLL and after native setup with stock Ricochet. Neither probe
+   published a stale session. Win32 remains pending. [Live map-change results](fake-client-lifecycle.md#live-map-change-with-a-pending-removal)
 
 The first increment covers creation, identity, and supported teardown.
 Movement, bot AI, and game-specific setup are later work.
