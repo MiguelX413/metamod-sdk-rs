@@ -27,6 +27,8 @@ static edict_t player{}, world{}, vacant{};
 static bool discovery_transition;
 static int logged;
 static int keyvalue_logs;
+static int admission_deferrals;
+static int admission_rejections;
 static bool engine_demo;
 static bool runtime_audit;
 static bool audit_reentry;
@@ -243,6 +245,20 @@ static void server_print(const char *message) {
         assert(!reuse_player_during_lookup);
         assert(std::strcmp(message, "Hello, player in slot 7!\n") == 0);
         expect_reused_player_fallback = false;
+        return;
+    }
+    if (std::strcmp(message, "Rust admission demo: deferred\n") == 0) {
+        assert(engine_demo && ++admission_deferrals == 1);
+        return;
+    }
+    if (std::strcmp(message, "Rust admission demo: rejected\n") == 0) {
+        assert(engine_demo && ++admission_rejections == 1);
+        char nested[128];
+        std::memset(nested, '!', sizeof nested);
+        globals.mres = MRES_UNSET;
+        assert(hooks.pfnClientConnect(&player, "RustAdmissionReject", "loopback", nested) == 1);
+        assert(globals.mres == MRES_IGNORED);
+        for (char byte : nested) assert(byte == '!');
         return;
     }
     if (std::strncmp(message, "Map classname: ", 15) == 0) {
@@ -488,6 +504,28 @@ int main(int argc, char **argv) {
     assert(version == NEW_DLL_FUNCTIONS_VERSION && !new_hooks.pfnGameShutdown);
     assert(functions.pfnGetNewDLLFunctions(&new_hooks, &version));
     assert(new_hooks.pfnGameShutdown && !new_hooks.pfnShouldCollide);
+    assert((hooks.pfnClientConnect != nullptr) == engine_demo && !post_hooks.pfnClientConnect);
+    if (engine_demo) {
+        char reason[129];
+        std::memset(reason, '!', sizeof reason);
+        globals.prev_mres = MRES_HANDLED;
+        assert(hooks.pfnClientConnect(&player, "RustAdmissionAllow", "loopback", reason) == 1);
+        assert(globals.mres == MRES_IGNORED && globals.prev_mres == MRES_HANDLED);
+        char unterminated[4096];
+        std::memset(unterminated, 'x', sizeof unterminated);
+        assert(hooks.pfnClientConnect(&player, unterminated, "loopback", reason) == 1);
+        assert(hooks.pfnClientConnect(&player, nullptr, "loopback", reason) == 1);
+        assert(hooks.pfnClientConnect(&player, "RustAdmissionReject", nullptr, reason) == 1);
+        assert(hooks.pfnClientConnect(&player, "RustAdmissionReject", "loopback", nullptr) == 1);
+        assert(globals.mres == MRES_IGNORED);
+        for (char byte : reason) assert(byte == '!');
+        assert(hooks.pfnClientConnect(&player, "RustAdmissionReject", "loopback", reason) == 0);
+        assert(globals.mres == MRES_SUPERCEDE && globals.prev_mres == MRES_HANDLED);
+        assert(std::strcmp(reason, "Rust admission demo rejected this name.") == 0);
+        assert(reason[128] == '!');
+        assert(admission_deferrals == 1 && admission_rejections == 1);
+        globals.prev_mres = MRES_UNSET;
+    }
     if (runtime_audit) {
         assert(!detach(PT_ANYTIME, PNL_COMMAND));
         exercise_audit();
@@ -663,6 +701,9 @@ int main(int argc, char **argv) {
     post_hooks.pfnClientPutInServer(&player);
     assert(logged == expected_logs && globals.mres == MRES_IGNORED);
     if (engine_demo) {
+        char reason[128] = "unchanged";
+        assert(hooks.pfnClientConnect(&player, "RustAdmissionReject", "loopback", reason) == 1);
+        assert(globals.mres == MRES_IGNORED && std::strcmp(reason, "unchanged") == 0);
         command();
         assert(logged == expected_logs);
         native_pass("native.command.snapshot_limits.v1", "Nested argv read and unterminated bounded argument were discarded");

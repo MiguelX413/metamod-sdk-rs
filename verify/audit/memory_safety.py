@@ -129,6 +129,8 @@ def markdown(report):
 
 
 MIRI_SCENARIOS = (
+    "__ffi::tests::client_admission_is_synchronous_and_bounds_the_rejection_buffer",
+    "__ffi::tests::client_admission_discards_rejection_after_nested_shutdown",
     "__ffi::tests::native_print_reentry_keeps_the_plugin_and_borrowed_buffer_live",
     "__ffi::tests::cvar_getter_discards_a_result_invalidated_during_native_reentry",
     "__ffi::tests::nested_lifecycle_is_deferred_and_panic_disables_user_hooks",

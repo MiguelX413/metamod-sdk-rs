@@ -567,12 +567,12 @@ unsafe extern "C" fn client_connect<P: Plugin>(
         }
         // SAFETY: ClientConnect supplies C strings readable through their NUL
         // or the scan limit. Copy both before running any plugin code.
-        let (Some(name), Some(address)) = (unsafe {
-            (
-                engine::copy_string(name, engine::MAX_ENGINE_STRING),
-                engine::copy_string(address, engine::MAX_ENGINE_STRING),
-            )
-        }) else {
+        let Some(name) = (unsafe { engine::copy_string(name, engine::MAX_ENGINE_STRING) }) else {
+            return HookResult::Ignored;
+        };
+        // SAFETY: The address follows the same input contract. No callback has run.
+        let Some(address) = (unsafe { engine::copy_string(address, engine::MAX_ENGINE_STRING) })
+        else {
             return HookResult::Ignored;
         };
         match plugin.client_connect(context, &ClientConnection { name, address }) {
@@ -1087,6 +1087,12 @@ mod tests {
                 match client.name.as_bytes() {
                     b"defer" => ClientAdmission::Defer,
                     b"panic" => panic!("admission panic"),
+                    b"exact" => {
+                        ClientAdmission::Reject(std::ffi::CString::new(vec![b'x'; 127]).unwrap())
+                    }
+                    b"utf8" => ClientAdmission::Reject(
+                        std::ffi::CString::new(format!("{}é", "x".repeat(126))).unwrap(),
+                    ),
                     _ => {
                         let mut nested = [42; 128];
                         // SAFETY: The nested call has live inputs and writable output.
@@ -1123,6 +1129,8 @@ mod tests {
                 c"defer".as_ptr(),
                 ptr::null(),
                 c"reject".as_ptr(),
+                c"exact".as_ptr(),
+                c"utf8".as_ptr(),
                 c"panic".as_ptr(),
                 c"reject".as_ptr(),
             ]
@@ -1136,9 +1144,10 @@ mod tests {
                     c"loopback".as_ptr(),
                     output.as_mut_ptr(),
                 );
-                if step == 2 {
+                if (2..=4).contains(&step) {
                     assert_eq!((result, globals.mres), (0, MRES_SUPERCEDE));
-                    assert!(output[..127].iter().all(|&byte| byte == b'x' as c_char));
+                    assert!(output[..126].iter().all(|&byte| byte == b'x' as c_char));
+                    assert_eq!(output[126] as u8, if step == 4 { 0xc3 } else { b'x' });
                     assert_eq!(output[127..], [0, 42]);
                 } else {
                     assert_eq!((result, globals.mres), (1, MRES_IGNORED));
@@ -1147,6 +1156,60 @@ mod tests {
             }
             game_shutdown::<Admission>();
         }
+    }
+
+    #[test]
+    fn client_admission_discards_rejection_after_nested_shutdown() {
+        thread_local! {
+            static DROPPED: Cell<bool> = const { Cell::new(false) };
+        }
+
+        #[derive(Default)]
+        struct Admission;
+        impl Plugin for Admission {
+            const METADATA: Metadata = METADATA;
+
+            fn client_connect(
+                &mut self,
+                _: &mut Context<'_>,
+                _: &ClientConnection,
+            ) -> ClientAdmission {
+                // SAFETY: This mock keeps the attached hook globals live.
+                unsafe { game_shutdown::<Self>() };
+                assert!(!DROPPED.get());
+                ClientAdmission::Reject(c"too late".to_owned())
+            }
+        }
+
+        impl Drop for Admission {
+            fn drop(&mut self) {
+                DROPPED.set(true);
+            }
+        }
+
+        queried();
+        let mut globals = MetaGlobals::default();
+        let mut functions = MetaFunctions::default();
+        let mut reason = [42; 128];
+        // SAFETY: Mock globals, input strings and output remain live throughout.
+        unsafe {
+            assert_eq!(
+                attach::<Admission>(PT_STARTUP, &mut functions, &raw mut globals),
+                1
+            );
+            assert_eq!(
+                client_connect::<Admission>(
+                    ptr::null_mut(),
+                    c"client".as_ptr(),
+                    c"loopback".as_ptr(),
+                    reason.as_mut_ptr()
+                ),
+                1
+            );
+        }
+        assert!(DROPPED.get());
+        assert_eq!(globals.mres, MRES_IGNORED);
+        assert_eq!(reason, [42; 128]);
     }
 
     #[test]
