@@ -596,3 +596,7 @@ records six certified Linux i686 configurations tested on Ubuntu 26.04. It
 lists launcher and engine module hashes separately and applies to the
 recorded binaries and map itinerary. The runtime audit guide also documents
 the optional Ubuntu wrapper for reproducing the run with a prebuilt plugin.
+
+See the [memory-safety audit guide](docs/memory-safety-audit.md) for the
+unsafe boundary review, Miri mocks, sanitizer fixtures, and opt-in live
+Memcheck evidence.

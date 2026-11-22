@@ -11,6 +11,7 @@ REPO_REF="master"
 AUDIT_PLUGIN=""
 PLUGIN_PROVENANCE=""
 CERTIFY_PROFILE=""
+MEMCHECK=0
 STEAM_USER=""
 UPDATED_DLL=""
 VALVE_VERSION=""
@@ -30,6 +31,7 @@ SKIP_APT=0
 SKIP_STEAM=0
 KEEP_OLD=1
 RERUN_SOURCE=""
+RERUN_RUNNER_CHECKOUT=""
 FAILED_ONLY=0
 MAP_CYCLES_EXPLICIT=0
 ONLY_RUNTIMES=()
@@ -42,11 +44,15 @@ Usage: ./ricochet_audit_ubuntu.sh [options]
   --workdir PATH               Workspace (default ~/ricochet-audit-lab)
   --rerun [latest|RUN_ID]      Reuse an existing run's installed servers and audit plugin;
                                no SteamCMD download, apt install, or server re-provisioning
+  --rerun-runner-checkout PATH
+                               Explicitly use a clean runner checkout for a saved rerun
   --only RUNTIME_ID           Audit only this matrix row (repeatable)
   --failed-only               With --rerun, retry only rows that failed or were incomplete
   --plugin PATH                Prebuilt Linux i686 metamod-audit .so (required for fresh runs)
   --plugin-provenance PATH     Build provenance JSON for the prebuilt plugin
   --certify PROFILE            Evaluate the live report after the audit
+  --memcheck                   Collect separate Valgrind memory-safety v1 reports;
+                               requires Valgrind with i386 support on the audit host
   --repo-ref REF               metamod-sdk-rs branch/tag/commit (default master)
   --steam-user NAME            Use Steam account instead of anonymous if necessary.
                                SteamCMD handles password/Steam Guard interactively.
@@ -89,14 +95,15 @@ Rerun examples:
 
 Reruns create a new runs/<timestamp>-<pid> directory. They reuse the saved
 server snapshots, the existing audit plugin, and the pinned SDK checkout.
-The source run must remain on disk; if the repository revision has changed,
-the rerun stops rather than silently mixing versions.
+The source run must remain on disk. The default rerun requires its pinned
+runner revision. An explicit --rerun-runner-checkout preserves the saved
+artifact provenance and records the selected runner revision separately.
 HELP
 }
 
 while (($#)); do
   case "$1" in
-    --workdir|--plugin|--plugin-provenance|--certify|--repo-ref|--steam-user|--updated-gamedll|--valve-version|--rehlds-console-version|--classic-console-version|--metamodr-console-version|--rehlds-zip|--metamodr-zip|--classic-zip|--map-cycles|--client-wait)
+    --workdir|--plugin|--plugin-provenance|--certify|--repo-ref|--steam-user|--updated-gamedll|--valve-version|--rehlds-console-version|--classic-console-version|--metamodr-console-version|--rehlds-zip|--metamodr-zip|--classic-zip|--map-cycles|--client-wait|--rerun-runner-checkout)
       (($# >= 2)) || { echo "Missing value: $1" >&2; exit 2; }
       key="$1"; val="$2"; shift 2
       case "$key" in
@@ -114,6 +121,7 @@ while (($#)); do
         --rehlds-zip) REHLDS_ZIP="$val";; --metamodr-zip) METAMODR_ZIP="$val";;
         --classic-zip) CLASSIC_ZIP="$val";; --map-cycles) MAP_CYCLES="$val"; MAP_CYCLES_EXPLICIT=1;;
         --client-wait) CLIENT_WAIT="$val";;
+        --rerun-runner-checkout) RERUN_RUNNER_CHECKOUT="$val";;
       esac;;
     --rerun)
       RERUN_SOURCE=latest
@@ -124,6 +132,7 @@ while (($#)); do
     --failed-only) FAILED_ONLY=1; shift;;
     --experimental) EXPERIMENTAL=1; RERUN_DISALLOWED+=(--experimental); shift;;
     --prepare-only) PREPARE_ONLY=1; shift;;
+    --memcheck) MEMCHECK=1; shift;;
     --with-native) WITH_NATIVE=1; shift;;
     --with-rust-tests) WITH_RUST_TESTS=1; shift;;
     --skip-apt) SKIP_APT=1; shift;;
@@ -163,6 +172,8 @@ validate_elf32() {
 }
 trap 'echo "ERROR near line $LINENO. Existing files and partial logs are preserved." >&2' ERR
 [[ -z $CERTIFY_PROFILE ]] || (( ! PREPARE_ONLY )) || die "--certify requires a live run"
+(( ! MEMCHECK || ! PREPARE_ONLY )) || die "--memcheck requires a live run"
+[[ -z $RERUN_RUNNER_CHECKOUT || -n $RERUN_SOURCE ]] || die "--rerun-runner-checkout requires --rerun"
 [[ -z $PLUGIN_PROVENANCE || -r $PLUGIN_PROVENANCE ]] || die "Cannot read --plugin-provenance"
 
 # A single validation path is used by initial provisioning and by reruns.
@@ -219,11 +230,21 @@ if (( WITH_RUST_TESTS )); then
 fi
 }
 
+check_memcheck_support() {
+  if (( MEMCHECK )); then
+    local help
+    help="$(python3 "$REPO/verify/audit/runner.py" run --help)" || die "Cannot inspect runner capabilities"
+    [[ $help == *--memcheck* ]] || die "This runner predates --memcheck. Select a newer clean checkout with --rerun-runner-checkout PATH."
+  fi
+}
+
 run_matrix_and_summary() {
+check_memcheck_support
 say "Running configured actual HLDS/ReHLDS audit matrix (${#ONLY_RUNTIMES[@]} explicit runtime filters)."
 RUNNER=(python3 "$REPO/verify/audit/runner.py" run "$RUNROOT/matrix.json" "$RUNROOT/report" --platform linux)
 ((CLIENT_WAIT == 0)) || RUNNER+=(--client-wait "$CLIENT_WAIT")
 ((PREPARE_ONLY == 0)) || RUNNER+=(--prepare-only)
+((MEMCHECK == 0)) || RUNNER+=(--memcheck)
 for selected in "${ONLY_RUNTIMES[@]}"; do RUNNER+=(--only "$selected"); done
 set +e
 "${RUNNER[@]}"
@@ -359,10 +380,13 @@ echo "Setup and audit files: $RUNROOT"
 echo "Matrix: $RUNROOT/matrix.json"
 echo "Report: $RUNROOT/report/report.md"
 echo "Evidence summary: $RUNROOT/audit-summary.md"
+if ((MEMCHECK)) && [[ -f $RUNROOT/report/memory-safety.md ]]; then
+  echo "Memory-safety evidence: $RUNROOT/report/memory-safety.md"
+fi
 echo "Audit completion is separate from certification. Use --certify to evaluate a profile."
 if ((STATUS != 0)); then
   echo "Some configurations did not pass; inspect the reports and per-runtime logs."
-  if (( ! PREPARE_ONLY )) && [[ -t 0 ]]; then
+  if (( ! PREPARE_ONLY && ! MEMCHECK )) && [[ -t 0 ]]; then
     echo "Some HLDS versions do not process stdin through a pipe."
     read -r -p 'Also create manually launchable isolated copies? [y/N]: ' manual_answer
     if [[ $manual_answer =~ ^[Yy]([Ee][Ss])?$ ]]; then
@@ -383,10 +407,15 @@ if [[ -n $RERUN_SOURCE ]]; then
 
   [[ -d $WORKDIR ]] || die "Workspace does not exist: $WORKDIR"
   WORKDIR="$(cd "$WORKDIR" && pwd -P)"
-  REPO="$WORKDIR/metamod-sdk-rs"
-  [[ -d $REPO/.git ]] || die "Missing source checkout: $REPO"
   command -v python3 >/dev/null || die "Python 3 is required for reruns"
   command -v git >/dev/null || die "Git is required for reruns"
+  REPO="${RERUN_RUNNER_CHECKOUT:-$WORKDIR/metamod-sdk-rs}"
+  REPO="$(cd -- "$REPO" && pwd -P)" || die "Missing source checkout"
+  [[ -e $REPO/.git ]] || die "Missing source checkout: $REPO"
+  if [[ -n $RERUN_RUNNER_CHECKOUT ]]; then
+    checkout_status="$(git -C "$REPO" status --porcelain)" || die "Cannot inspect checkout: $REPO"
+    [[ -z $checkout_status ]] || die "Explicit runner checkout must be clean: $REPO"
+  fi
   if [[ $RERUN_SOURCE == latest ]]; then
     RERUN_ORIGIN="$(python3 - "$REPO/verify/audit" "$WORKDIR/runs" <<'PY_LATEST'
 import pathlib, sys
@@ -409,8 +438,10 @@ PY_COMMIT
 )"
   [[ $AUDIT_COMMIT =~ ^[0-9a-f]{40}$ ]] || die "Saved source metadata lacks a valid pinned Git commit"
   ACTUAL_COMMIT="$(git -C "$REPO" rev-parse HEAD)"
-  [[ $AUDIT_COMMIT == "$ACTUAL_COMMIT" ]] || die "SDK checkout moved: expected $AUDIT_COMMIT, got $ACTUAL_COMMIT. Restore the pinned commit (or run a new provisioning pass) before rerunning."
+  [[ -n $RERUN_RUNNER_CHECKOUT || $AUDIT_COMMIT == "$ACTUAL_COMMIT" ]] || die "SDK checkout moved: expected $AUDIT_COMMIT, got $ACTUAL_COMMIT. Restore the pinned commit or use --rerun-runner-checkout PATH."
   [[ -f "$REPO/verify/audit/runner.py" ]] || die "Missing audit runner in $REPO"
+  check_memcheck_support
+  AUDIT_COMMIT="$ACTUAL_COMMIT"
   RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
   RUNROOT="$WORKDIR/runs/$RUN_ID"
   [[ ! -e $RUNROOT ]] || die "Output run directory already exists: $RUNROOT"
@@ -421,14 +452,15 @@ PY_COMMIT
   # Resolve the --failed-only filter from the PREVIOUS run's report, not a
   # pass/fail heuristic applied to a partially written new report.
   SELECTED_FILE="$RUNROOT/selected-runtimes.txt"
-  python3 - "$RERUN_ORIGIN" "$RUNROOT" "$FAILED_ONLY" "$MAP_CYCLES_EXPLICIT" "$MAP_CYCLES" "$SELECTED_FILE" "$CERTIFY_PROFILE" "$REPO/verify/audit" "${ONLY_RUNTIMES[@]}" <<'PY_RERUN'
+  python3 - "$RERUN_ORIGIN" "$RUNROOT" "$FAILED_ONLY" "$MAP_CYCLES_EXPLICIT" "$MAP_CYCLES" "$SELECTED_FILE" "$CERTIFY_PROFILE" "$REPO/verify/audit" "$AUDIT_COMMIT" "${ONLY_RUNTIMES[@]}" <<'PY_RERUN'
 import json, pathlib, sys
 source, dest = map(pathlib.Path, sys.argv[1:3])
 failed_only, override_cycles, cycles = map(int, sys.argv[3:6])
 selected_file = pathlib.Path(sys.argv[6])
 profile = sys.argv[7]
 sys.path.insert(0, sys.argv[8])
-requested = set(sys.argv[9:])
+runner_commit = sys.argv[9]
+requested = set(sys.argv[10:])
 matrix = json.loads((source / 'matrix.json').read_text(encoding='utf-8'))
 if matrix.get('schema_version') != 1 or not isinstance(matrix.get('runtimes'), list):
     raise SystemExit('saved runtime matrix is invalid')
@@ -490,6 +522,8 @@ for r in matrix['runtimes']:
 (dest / 'matrix.json').write_text(json.dumps({'schema_version':1, 'runtimes':rows}, indent=2) + '\n', encoding='utf-8')
 selected_file.write_text('\n'.join(r['id'] for r in rows) + ('\n' if rows else ''), encoding='utf-8')
 source_meta = json.loads((source / 'sources.json').read_text(encoding='utf-8'))
+source_meta['source_repo_commit'] = source_meta['repo_commit']
+source_meta['repo_commit'] = runner_commit
 source_meta['rerun_of'] = str(source)
 source_meta['rerun_selection'] = {'failed_only':bool(failed_only), 'requested':sorted(requested), 'certification_profile':profile or None,
                                   'map_cycles_override':cycles if override_cycles else None}

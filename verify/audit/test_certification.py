@@ -271,9 +271,13 @@ class CertificationTests(unittest.TestCase):
             dest.mkdir()
             selected = dest / "selected.txt"
             subprocess.run([sys.executable, "-c", embedded, str(source), str(dest),
-                            "1", "0", "2", str(selected), profile, str(checkout)],
+                            "1", "0", "2", str(selected), profile, str(checkout), "b" * 40],
                            check=True, capture_output=True, text=True)
             self.assertEqual(set(selected.read_text().splitlines()), expected)
+            metadata = json.loads((dest / "sources.json").read_text())
+            self.assertEqual(metadata["repo_commit"], "b" * 40)
+            self.assertEqual(metadata["source_repo_commit"], "a" * 40)
+            self.assertEqual(json.loads((source / "sources.json").read_text()), {"repo_commit": "a" * 40})
 
     def test_cli_mixed_matrix_schema_and_exit_codes(self):
         good = self.collect("good")

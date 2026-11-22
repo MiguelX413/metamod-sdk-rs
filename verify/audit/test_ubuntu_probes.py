@@ -9,6 +9,35 @@ import unittest
 @unittest.skipUnless(os.name == "posix" and shutil.which("bash") and shutil.which("timeout"),
                      "requires Bash and timeout on POSIX")
 class UbuntuVersionProbeTests(unittest.TestCase):
+    def test_memcheck_is_forwarded_only_to_the_live_runner(self):
+        script = Path(__file__).with_name("ricochet_audit_ubuntu.sh").read_text()
+        start = script.index("check_memcheck_support()")
+        end = script.index("PY_SELECTION\n", start) + len("PY_SELECTION\n")
+        invocation = script[start:end]
+        for flag in ("0", "1"):
+            with self.subTest(memcheck=flag):
+                result = subprocess.run(
+                    ["bash", "-ec", '''
+say() { :; }
+die() { printf '%s\\n' "$*" >&2; exit 1; }
+python3() {
+    case "$2" in
+        run)
+            if [[ $3 == --help ]]; then echo --memcheck; else printf '%s\\n' "$@"; fi ;;
+        *) cat >/dev/null ;;
+    esac
+}
+REPO=/checkout
+RUNROOT=/run
+CLIENT_WAIT=0
+PREPARE_ONLY=0
+ONLY_RUNTIMES=()
+''' + invocation + "\n}\nrun_matrix_and_summary"],
+                    env={**os.environ, "MEMCHECK": flag}, capture_output=True, text=True, check=True,
+                )
+                self.assertEqual("--memcheck" in result.stdout.splitlines(), flag == "1")
+                self.assertIn("/run/matrix.json", result.stdout.splitlines())
+
     def test_manual_launchers_supply_library_path_without_wrapper_help(self):
         script = Path(__file__).with_name("ricochet_audit_ubuntu.sh").read_text()
         start = script.index('cat > "$RUNROOT/start-rehlds.sh"')

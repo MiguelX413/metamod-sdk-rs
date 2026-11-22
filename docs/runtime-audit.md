@@ -157,6 +157,11 @@ matrices and partially recorded attempts. A saved run with an explicit
 selection records the attempted rows separately. Older filtered runs without
 that record can still be selected by their explicit run ID.
 
+The bootstrap also supports opt-in `--memcheck` on saved reruns. Its
+memory-safety reports are separate from compatibility certification.
+For saved matrices pinned before Memcheck support, use an explicit clean
+runner checkout. [Memory-safety audit guide](memory-safety-audit.md#instrument-an-existing-linux-matrix)
+
 The profile is the applicability rule. Player and gameplay probes are
 outside core's mandatory scope. Hooks measured only by the native fixture
 are outside all three live profiles. If a profile requires a hook and the

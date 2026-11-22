@@ -847,7 +847,7 @@ mod tests {
         // SAFETY: The tables and edict stay live for all hook calls.
         unsafe {
             assert_eq!(
-                attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals),
                 1
             );
             let player = EVENTS
@@ -907,7 +907,7 @@ mod tests {
         // SAFETY: All invocations run on the attached thread with live globals.
         unsafe {
             assert_eq!(
-                attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals),
                 1
             );
             start_frame::<TestPlugin>();
@@ -964,7 +964,7 @@ mod tests {
         // SAFETY: The hook globals remain live through nested dispatch.
         unsafe {
             assert_eq!(
-                attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals),
                 1
             );
             start_frame::<TestPlugin>();
@@ -1011,7 +1011,7 @@ mod tests {
         // SAFETY: The native tables remain live on this thread through shutdown.
         unsafe {
             assert_eq!(
-                attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals),
                 1
             );
             start_frame::<TestPlugin>();
@@ -1041,7 +1041,7 @@ mod tests {
         let mut functions = MetaFunctions::default();
         // SAFETY: The hook globals remain live throughout this test.
         assert_eq!(
-            unsafe { attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals) },
+            unsafe { attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals) },
             1
         );
         for (decision, expected, value) in [
@@ -1094,11 +1094,12 @@ mod tests {
     fn exercise_dispatch_budget(first: unsafe extern "C" fn(), expected: (usize, usize)) {
         queried();
         let mut globals = MetaGlobals::default();
+        let globals_ptr = &raw mut globals;
         let mut functions = MetaFunctions::default();
         // SAFETY: All calls run on the attached thread with live globals.
         unsafe {
             assert_eq!(
-                attach::<BudgetPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<BudgetPlugin>(PT_STARTUP, &mut functions, globals_ptr),
                 1
             );
             first();
@@ -1111,9 +1112,11 @@ mod tests {
         ));
         assert!(!RUNNING.get());
 
-        globals.mres = MRES_UNSET;
-        // SAFETY: The test keeps the attached globals live.
-        unsafe { start_frame::<BudgetPlugin>() };
+        // SAFETY: Use the same live native storage as the attached SDK.
+        unsafe {
+            (*globals_ptr).mres = MRES_UNSET;
+            start_frame::<BudgetPlugin>();
+        }
         assert_eq!(globals.mres, MRES_IGNORED);
         INSTANCE.with(|instance| {
             let slot = instance.borrow();
@@ -1217,11 +1220,12 @@ mod tests {
             prev_mres: MRES_HANDLED,
             ..Default::default()
         };
+        let globals_ptr = &raw mut globals;
         let mut functions = MetaFunctions::default();
         // SAFETY: The test keeps its foreign output storage live.
         unsafe {
             assert_eq!(
-                attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, globals_ptr),
                 1
             );
             thread::spawn(|| start_frame::<TestPlugin>())
@@ -1231,7 +1235,8 @@ mod tests {
             start_frame::<TestPlugin>();
             assert_eq!(globals.mres, MRES_IGNORED);
             assert_eq!(globals.prev_mres, MRES_HANDLED);
-            globals.mres = MRES_UNSET;
+            // Use the same native pointer for writes between invocations.
+            (*globals_ptr).mres = MRES_UNSET;
             begin_map(ptr::null_mut(), 0, 0);
             server_activate::<TestPlugin>(ptr::null_mut(), 0, 0);
         }
@@ -1281,6 +1286,73 @@ mod tests {
     }
 
     #[test]
+    fn native_print_reentry_keeps_the_plugin_and_borrowed_buffer_live() {
+        thread_local! {
+            static DROPS: Cell<usize> = const { Cell::new(0) };
+        }
+
+        unsafe extern "C" fn print(message: *const c_char) {
+            // SAFETY: The SDK lends the mock a C string for this entire call.
+            let before = unsafe { engine::copy_string(message, 16) };
+            // SAFETY: The test owns the hook globals until both callbacks return.
+            unsafe { game_shutdown::<TestPlugin>() };
+            let after = unsafe { engine::copy_string(message, 16) };
+            // Record the observation without panicking inside the C ABI.
+            OBSERVED.set(before.as_deref() == Some(c"owned by plugin") && before == after);
+        }
+
+        thread_local! {
+            static OBSERVED: Cell<bool> = const { Cell::new(false) };
+        }
+
+        struct TestPlugin(std::ffi::CString);
+
+        impl Default for TestPlugin {
+            fn default() -> Self {
+                Self(c"owned by plugin".to_owned())
+            }
+        }
+
+        impl Plugin for TestPlugin {
+            const METADATA: Metadata = METADATA;
+
+            fn start_frame(&mut self, context: &mut Context<'_>) {
+                context.server().print(&self.0);
+                assert_eq!(DROPS.get(), 0);
+                assert!(!engine_available());
+                self.0 = c"frame finished".to_owned();
+            }
+        }
+
+        impl Drop for TestPlugin {
+            fn drop(&mut self) {
+                DROPS.update(|count| count + 1);
+            }
+        }
+
+        queried();
+        ENGINE.set(Engine {
+            print: Some(print),
+            ..Default::default()
+        });
+        let mut globals = MetaGlobals::default();
+        let mut functions = MetaFunctions::default();
+        // SAFETY: Both native tables stay live through all mock calls.
+        unsafe {
+            assert_eq!(
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals),
+                1
+            );
+            start_frame::<TestPlugin>();
+            game_shutdown::<TestPlugin>();
+        }
+        assert!(OBSERVED.get());
+        assert_eq!(DROPS.get(), 1);
+        assert!(INSTANCE.with(|instance| instance.borrow().is_none()));
+        assert_eq!(globals.mres, MRES_IGNORED);
+    }
+
+    #[test]
     fn nested_shutdown_revokes_engine_access_and_cleans_up_once() {
         #[derive(Default)]
         struct TestPlugin;
@@ -1315,16 +1387,18 @@ mod tests {
 
         queried();
         let mut globals = MetaGlobals::default();
+        let globals_ptr = &raw mut globals;
         let mut functions = MetaFunctions::default();
         // SAFETY: All calls use the attached thread and live globals.
         unsafe {
             assert_eq!(
-                attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals),
+                attach::<TestPlugin>(PT_STARTUP, &mut functions, globals_ptr),
                 1
             );
             start_frame::<TestPlugin>();
             assert_eq!(globals.mres, MRES_IGNORED);
-            globals.mres = MRES_UNSET;
+            // Use the same native pointer for writes between invocations.
+            (*globals_ptr).mres = MRES_UNSET;
             game_shutdown::<TestPlugin>();
             assert_eq!(globals.mres, MRES_IGNORED);
         }
@@ -1374,7 +1448,7 @@ mod tests {
         for drops in 1..=2 {
             // SAFETY: The output pointers remain live during the call.
             assert_eq!(
-                unsafe { attach::<TestPlugin>(PT_STARTUP, &mut functions, &mut globals) },
+                unsafe { attach::<TestPlugin>(PT_STARTUP, &mut functions, &raw mut globals) },
                 0
             );
             assert_eq!(DROPS.get(), drops);

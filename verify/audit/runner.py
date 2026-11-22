@@ -20,6 +20,7 @@ import uuid
 
 from evidence import CONSOLE_EVIDENCE, CRASH, NATIVE_PREFIX, SANITIZER, identity, linux_mappings, windows_mappings
 import certification
+import memory_safety
 
 SCHEMA = 1
 REPO = Path(__file__).resolve().parents[2]
@@ -566,7 +567,7 @@ def sample_rss(process, checkpoint):
         return {"checkpoint": checkpoint, "rss_kib": None}
 
 
-def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_only=False):
+def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_only=False, memcheck=False):
     runtime = {key: spec[key] for key in ("id", "os") if key in spec}
     runtime["architecture"] = "i686" if spec.get("os") == "linux" else "x86"
     runtime["host"] = {"system": platform.system(), "release": platform.release(),
@@ -584,9 +585,16 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
     runtime["runner_revision"] = {"commit": revision.get("sdk_commit"),
                                   "working_tree_dirty": revision.get("working_tree_dirty")}
     metadata = {"run_id": run_id, "executed": False, "execution": "MISSING", "exit_status": None}
-    if reason := spec.get("unsupported_reason"):
+    if memcheck:
+        metadata["memory_instrumentation"] = {"status": "NOT_RUN", "tool": "Valgrind Memcheck"}
+    reason = spec.get("unsupported_reason")
+    if memcheck and (spec.get("os") != "linux" or platform.system() != "Linux"):
+        reason = reason or "Memcheck mode requires a Linux host and a Linux matrix row"
+    if reason:
         runtime["unsupported_reason"] = reason
         metadata.update(execution="UNSUPPORTED", error=reason)
+        if memcheck:
+            metadata["memory_instrumentation"].update(status="UNSUPPORTED", reason=reason)
         return aggregate(output, runtime, metadata, [])
     try:
         system = spec["os"]
@@ -708,6 +716,14 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
             env.update(launch_env)
             if prepare_only:
                 args.insert(2, "-condebug")
+            if memcheck:
+                try:
+                    args, tool_version = memory_safety.memcheck_command(str(binary), args[1:], output / "memcheck.xml")
+                except FileNotFoundError as error:
+                    metadata["memory_instrumentation"].update(status="UNSUPPORTED", reason=str(error))
+                    raise
+                metadata["memory_instrumentation"]["version"] = tool_version
+                timeout *= 4
             dump(output / "launch.json", {"argv": args, "cwd": str(stage), "environment": launch_env})
             if prepare_only:
                 metadata["execution"] = "PREPARED"
@@ -782,7 +798,7 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
                 except (OSError, RuntimeError) as error:
                     metadata["error"] = str(error)
                 finally:
-                    metadata["shutdown_method"] = stop(process, console, min(timeout, 15))
+                    metadata["shutdown_method"] = stop(process, console, min(timeout, 60 if memcheck else 15))
                     metadata["exit_status"] = process.returncode
                     for thread in console.threads:
                         thread.join(timeout=5)
@@ -801,7 +817,19 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
         else:
             metadata["execution"] = "INCOMPLETE"
     logs = [path for path in (output / "stdout.log", output / "stderr.log") if path.exists()]
-    return aggregate(output, runtime, metadata, logs)
+    report = aggregate(output, runtime, metadata, logs)
+    if memcheck:
+        if metadata["executed"]:
+            report["memory_instrumentation"] = memory_safety.memcheck_result(
+                output / "memcheck.xml", tool_version, process.pid, str(binary),
+                report["execution"] == "COMPLETE" and report["protocol_complete"]
+                and not report["diagnostics"] and not report.get("crash_dumps")
+                and len(report["map_visits"]) == len(itinerary)
+                and all(identity["result"] == "PASS" for identity in report["runtime_identity"].values()),
+            )
+        elif metadata.get("error"):
+            report["memory_instrumentation"]["reason"] = metadata["error"]
+    return report
 
 
 def check_allowances(allowances):
@@ -1071,6 +1099,7 @@ def main():
     run.add_argument("--platform", type=str.lower, choices=("linux", "windows"))
     run.add_argument("--build", action="store_true")
     run.add_argument("--prepare-only", action="store_true", help="keep an isolated copy for manual console operation")
+    run.add_argument("--memcheck", action="store_true", help="collect separate memory-safety v1 evidence with Valgrind")
     run.add_argument("--client-wait", type=int, choices=range(0, 601), default=0, metavar="SECONDS")
     imp = sub.add_parser("import")
     imp.add_argument("runtime", type=Path, help="independently identified runtime JSON")
@@ -1108,6 +1137,8 @@ def main():
             (args.output / "certificate.md").write_text(certification.markdown(certificate), encoding="utf-8")
             return int(not certificate["all_certified"])
         if args.command == "run":
+            if args.memcheck and args.prepare_only:
+                raise ValueError("--memcheck requires an automated run")
             config_path = args.config.resolve(strict=True)
             config = load(config_path)
             if config["schema_version"] != SCHEMA:
@@ -1130,10 +1161,17 @@ def main():
             for spec in specs:
                 output = (args.output / spec["id"]).resolve()
                 output.mkdir()
-                runs.append(run_one(spec, config_path.parent, output, run_id, args.build, args.client_wait, args.prepare_only))
+                runs.append(run_one(spec, config_path.parent, output, run_id, args.build, args.client_wait,
+                                    args.prepare_only, args.memcheck))
                 finish(args.output, run_id, runs)
+                if args.memcheck:
+                    evidence = memory_safety.live_report(runs, args.output / "report.json")
+                    dump(args.output / "memory-safety.json", evidence)
+                    (args.output / "memory-safety.md").write_text(memory_safety.markdown(evidence), encoding="utf-8")
             if args.prepare_only:
                 return int(any(run["execution"] != "PREPARED" for run in runs))
+            if args.memcheck and any(run["memory_instrumentation"]["status"] != "PASS" for run in runs):
+                return 1
         else:
             if args.require_native_suite and not args.native_fixture:
                 raise ValueError("--require-native-suite requires --native-fixture")

@@ -131,6 +131,17 @@ jobs:
           RUSTFLAGS: ${{ matrix.rustflags }}
           ASAN_OPTIONS: detect_leaks=1
         run: cargo +nightly test --locked --workspace --lib --target "${{ matrix.target }}"
+      - name: Run Miri on controlled Rust FFI mocks
+        if: ${{ !cancelled() && matrix.arch == 'x86_64' }}
+        run: |
+          rustup component add miri --toolchain nightly
+          python3 verify/audit/memory_safety.py "$RUNNER_TEMP/miri-evidence"
+      - name: Preserve Miri evidence
+        if: ${{ always() && matrix.arch == 'x86_64' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: miri-evidence
+          path: ${{ runner.temp }}/miri-evidence/
 
   windows-i686:
     name: Win32 ABI and loader
