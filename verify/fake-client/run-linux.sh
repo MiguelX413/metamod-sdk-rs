@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run against saved audit snapshots on a disposable test host.
 set -euo pipefail
-[[ $# == 3 || $# == 4 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [stock|map]" >&2; exit 2; }
+[[ $# == 3 || $# == 4 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [stock|map|reentry]" >&2; exit 2; }
 base=$(realpath -e -- "$1")
 fixture=$(realpath -e -- "$2")
 output=$(realpath -- "$3")
@@ -13,7 +13,8 @@ case "$mode" in
   fixture) marker=FAKE_FIXTURE ;;
   stock) marker=FAKE_STOCK ;;
   map) marker=FAKE_MAP ;;
-  *) echo 'Expected stock, map, or no mode argument' >&2; exit 2 ;;
+  reentry) marker=FAKE_REENTRY ;;
+  *) echo 'Expected stock, map, reentry, or no mode argument' >&2; exit 2 ;;
 esac
 mkdir -- "$output"
 ulimit -c 0
@@ -66,6 +67,11 @@ for engine in linux-hlds linux-rehlds; do
     printf 'version\nmeta version\nstatus\nquit\n' >&3
     wait "$pid" || exit $?
     grep -q "^$marker PASS " "$output/$engine.log"
+    if [[ $mode == reentry ]]; then
+      grep -E '^map[[:space:]]*:[[:space:]]+rc_deathmatch([[:space:]]|$)' "$output/$engine.log"
+      grep -A1 -F 'Dropped SDKReentryProbe from server' "$output/$engine.log" |
+        grep -F 'Reason:  Dropping fakeclient on level change'
+    fi
     if [[ $mode == map ]]; then
       grep -E '^map[[:space:]]*:[[:space:]]+rc_deathmatch([[:space:]]|$)' "$output/$engine.log"
       # Both hosts dispatch the map-triggered disconnect before deactivation.

@@ -157,7 +157,7 @@ and immediate portable slot release remain unsupported by the evidence.
 ## Remaining verification
 
 Win32 and other manager and GameDLL combinations need their own
-observations. Reentrant invalidation during stock setup remains open. These tests are separate from compatibility certification.
+observations. A transition before stock GameDLL private data exists remains untested. These tests are separate from compatibility certification.
 
 ## Rust SDK and Ricochet adapter
 
@@ -193,8 +193,7 @@ had SHA-256
 `770fa1504814de73e95928bf61987c7111961250e3e296be6c62d68416ce6f45`.
 Rust mocks additionally exercised disconnect during setup, allocation
 returning after map retirement, a queued removal invalidated by a map
-change, and a nested frame during confirmation. Win32 and live reentrant
-map changes remain unverified.
+change, and a nested frame during confirmation. Win32 remains unverified.
 
 ```bash
 cargo build --locked --release --target i686-unknown-linux-gnu \
@@ -227,8 +226,8 @@ changed from `rc_arena` to `rc_deathmatch` and exited cleanly.
 
 The runner checks the destination map in the server's `status` output
 and corroborates the reason for each drop. The test covers a normal live
-map transition while a kick is pending. A map change reentering during
-native allocation or GameDLL setup remains covered only by mocks.
+map transition while a kick is pending. The reentry case below exercises a
+map change while the SDK creation call is still on the stack.
 
 ```bash
 cargo build --locked --release --target i686-unknown-linux-gnu \
@@ -240,3 +239,36 @@ bash verify/fake-client/run-linux.sh /path/to/saved/installs \
 Transfer the built shared object to the audit host before running the
 script. The tested binary SHA-256 was
 `2cad8c4bf38cfe76016f739b904d1717362772d97edfb53dda2141d2f625e238`.
+
+## Live reentry during SDK setup
+
+The [setup-reentry example](../adapters/ricochet/examples/ricochet_setup_reentry.rs)
+passed on Linux i686 Valve HLDS build 8684 and ReHLDS 3.15.0.896-dev,
+both with classic Metamod 1.21.1-am and stock Ricochet.
+
+The probe completed native Ricochet setup inside the SDK's setup closure.
+Before returning from that closure, it synchronously executed
+`changelevel rc_deathmatch` from `rc_arena`. Both engines dropped the
+fake client as part of the level change. The closure reported success,
+but the SDK detected the retired map and returned `SetupIncomplete`.
+Neither client slot had a published `PlayerId` when creation returned
+or on the following frame. The probe also checked that the SDK deferred
+the nested map notifications, delivered one deactivation and a second
+activation, and emitted no player join. Both runs confirmed the new map
+in native console output and shut down cleanly.
+
+The native player already had GameDLL private data when the test forced
+the transition. Reentry before stock Ricochet has initialized that data
+remains unverified on a live server. The example calls the native command
+executor for the test without extending the SDK's safe API.
+
+```bash
+cargo build --locked --release --target i686-unknown-linux-gnu \
+  -p metamod-ricochet --example ricochet_setup_reentry
+bash verify/fake-client/run-linux.sh /path/to/saved/installs \
+  /path/to/libricochet_setup_reentry.so /path/to/new-reentry-run reentry
+```
+
+Transfer the built shared object to the audit host before running the
+script. The tested binary SHA-256 was
+`7be2a1b81bfc143505fdf3ae310e8ff96926ed58197b188fa798484b7643836c`.

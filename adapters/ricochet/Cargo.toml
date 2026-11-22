@@ -18,3 +18,7 @@ crate-type = ["cdylib"]
 [[example]]
 name = "ricochet_map_change"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "ricochet_setup_reentry"
+crate-type = ["cdylib"]
