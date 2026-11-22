@@ -52,11 +52,32 @@ return `EngineError::Unavailable`.
 1. Finish live client admission verification on Win32. Linux i686 passed
    deferral, rejection, and reconnect on Valve HLDS with classic Metamod
    and on ReHLDS with Metamod-R. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
-2. Add validated message construction and fake-client lifecycle management,
-   then audit movement/physics and expand raw payload coverage family by family.
-3. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
+2. Implement [fake-client lifecycle management](#fake-client-lifecycle-management).
+3. Add validated message construction, then audit movement and physics and
+   expand raw payload coverage family by family.
+4. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
    using the existing native fixtures, runtime reports, and certification
    infrastructure.
+
+### Fake-client lifecycle management
+
+1. **Establish host behavior.** Check which admission, put-in-server, and
+   disconnect callbacks Valve HLDS and ReHLDS invoke around
+   `pfnCreateFakeClient`. Determine how each host handles failure after slot
+   allocation and which removal paths actually release the slot.
+2. **Expose the supported lifecycle.** Add scoped creation and track the
+   resulting session with `PlayerId` once its identity is established.
+   Revalidate identity after native reentry. Expose session termination only
+   where the host contract supports it, and document partial failures and
+   unavailable operations.
+3. **Verify the lifecycle.** Exercise creation failure, nested callbacks,
+   disconnect, slot reuse, and map transitions with synthetic fixtures.
+   Then test the supported sequences on disposable servers and record the
+   exact engine, Metamod, GameDLL, and platform for each result. Track Win32
+   admission verification independently.
+
+The first increment covers creation, identity, and supported teardown.
+Movement, bot AI, and game-specific setup are later work.
 
 ### Memory Contracts Validation v1
 
