@@ -53,3 +53,33 @@ return `EngineError::Unavailable`.
    expand result verification against a real Metamod host on both x86 targets.
 2. Add validated message construction and fake-client lifecycle management,
    then audit movement/physics and expand raw payload coverage family by family.
+3. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
+   using the existing native fixtures, runtime reports, and certification
+   infrastructure.
+
+### Memory Contracts Validation v1
+
+1. **Exercise native lifetime boundaries.** Add versioned adversarial probes
+   for string invalidation during reentry, edict reuse and arena retirement,
+   trace invalidation, nested shutdown and hook-result storage, and retained
+   CVar registration storage. Each probe must report its result after its
+   assertions complete. Document which invalidations the SDK can observe and
+   which lifetime guarantees the host must uphold.
+2. **Make fixture evidence reproducible.** Extend the native importer to
+   enforce the required probe set and reject missing, duplicate, malformed,
+   or unexpected records. Bind results to the fixture run, build revisions,
+   target, binary and log hashes, toolchain, and sanitizer configuration.
+   Run the expanded suite in the existing Linux i686 sanitizer jobs and
+   retain Win32 ABI coverage. Record unavailable instrumentation explicitly.
+3. **Evaluate three dimensions independently.** Version the profile and
+   report separate verdicts for synthetic SDK validation, observed behavior
+   on identified live hosts, and host contracts supported by external
+   evidence. Cover pointer readability, returned strings, registration
+   ownership, edict arenas, hook-result storage, and callback code lifetime.
+   Keep incomplete, unverified, and unsupported results visible. Preserve
+   the existing compatibility profiles and historical certificates.
+4. **Publish the reproduction workflow.** Document the probes, evidence
+   requirements, commands, and example output. Test rejection of crashes,
+   sanitizer findings, and mismatched builds or runs. A clean fixture
+   run supports the invariants it exercised. Live behavior and host
+   obligations require their own evidence.
