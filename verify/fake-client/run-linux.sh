@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Run against saved audit snapshots on a disposable test host.
 set -euo pipefail
-[[ $# == 3 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR" >&2; exit 2; }
+[[ $# == 3 || $# == 4 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [stock]" >&2; exit 2; }
 base=$(realpath -e -- "$1")
 fixture=$(realpath -e -- "$2")
 output=$(realpath -- "$3")
 case "$output/" in
   "$base/"*) echo "Output must be outside the saved installations." >&2; exit 2 ;;
+esac
+mode=${4:-fixture}
+case "$mode" in
+  fixture) marker=FAKE_FIXTURE ;;
+  stock) marker=FAKE_STOCK ;;
+  *) echo 'Expected stock or no mode argument' >&2; exit 2 ;;
 esac
 mkdir -- "$output"
 ulimit -c 0
@@ -21,10 +27,17 @@ for engine in linux-hlds linux-rehlds; do
   cp -a --reflink=auto -- "$source_dir" "$output/$engine"
   (
     cd "$output/$engine"
-    install -m 755 -- "$fixture" ricochet/dlls/fake_fixture.so
     mkdir -p ricochet/addons/mm_fixture
-    : >ricochet/addons/mm_fixture/plugins.ini
-    printf 'gamedll dlls/fake_fixture.so\nplugins_file addons/mm_fixture/plugins.ini\n' >ricochet/addons/mm_fixture/config.ini
+    if [[ $mode == stock ]]; then
+      gamedll=dlls/ricochet.so
+      install -m 755 -- "$fixture" ricochet/addons/mm_fixture/ricochet_probe.so
+      printf 'linux addons/mm_fixture/ricochet_probe.so\n' >ricochet/addons/mm_fixture/plugins.ini
+    else
+      gamedll=dlls/fake_fixture.so
+      install -m 755 -- "$fixture" "ricochet/$gamedll"
+      : >ricochet/addons/mm_fixture/plugins.ini
+    fi
+    printf 'gamedll %s\nplugins_file addons/mm_fixture/plugins.ini\n' "$gamedll" >ricochet/addons/mm_fixture/config.ini
     cp -- ricochet/addons/classic/dlls/metamod_i386.so ricochet/addons/classic/dlls/metamod.so
     sed -i '/^gamedll_linux /c\gamedll_linux "addons/classic/dlls/metamod.so"' ricochet/liblist.gam
     mkfifo "$output/$engine.in"
@@ -34,19 +47,19 @@ for engine in linux-hlds linux-rehlds; do
       +ip 127.0.0.1 +sv_lan 1 +maxplayers 2 +deathmatch 1 \
       +localinfo mm_configfile addons/mm_fixture/config.ini \
       +localinfo mm_pluginsfile addons/mm_fixture/plugins.ini \
-      +localinfo mm_gamedll dlls/fake_fixture.so +map rc_arena <&3 >"$output/$engine.log" 2>&1 &
+      +localinfo mm_gamedll "$gamedll" +map rc_arena <&3 >"$output/$engine.log" 2>&1 &
     pid=$!
     for ((n=0; n<30; ++n)); do
-      if grep -Eq '^FAKE_FIXTURE (PASS|FAIL)|Host_Error' "$output/$engine.log" || ! kill -0 "$pid" 2>/dev/null; then
+      if grep -Eq "^$marker (PASS|FAIL)|Host_Error" "$output/$engine.log" || ! kill -0 "$pid" 2>/dev/null; then
         break
       fi
       sleep .4
     done
     printf 'version\nmeta version\nquit\n' >&3
     wait "$pid" || exit $?
-    grep -q '^FAKE_FIXTURE PASS ' "$output/$engine.log"
+    grep -q "^$marker PASS " "$output/$engine.log"
   ) &
   wait "$!" || failed=1
-  grep -E 'FAKE_FIXTURE|Host_Error|ReHLDS version|Exe build' "$output/$engine.log" || true
+  grep -E "$marker|Host_Error|ReHLDS version|Exe build" "$output/$engine.log" || true
 done
 exit "$failed"

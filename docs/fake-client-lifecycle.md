@@ -98,9 +98,65 @@ writes separate logs, and requires a fixture pass marker and clean exit
 for each server. Use a test host and keep UDP port 27057 free. The fixture
 does not implement gameplay or support real clients.
 
+## Stock Ricochet setup and teardown
+
+A separate [Metamod probe](../verify/fake-client/ricochet_probe.cpp) ran
+with the stock Ricochet GameDLL on both Linux i686 snapshots above. It
+called the original GameDLL's `ClientConnect` and `ClientPutInServer` in
+that order after engine allocation, then queued a kick by the engine
+user ID. Both hosts completed two setup and kick sequences and exited
+cleanly.
+
+| Observation | Valve HLDS build 8684 | ReHLDS 3.15.0.896-dev |
+| --- | --- | --- |
+| GameDLL accepted setup and created private player data | Yes | Yes |
+| Engine set `FL_FAKECLIENT` at allocation | Yes | Yes |
+| Ricochet cleared `FL_FAKECLIENT` during spawn | Yes | Yes |
+| Kick delivered disconnect with private player data still present | Yes, twice | Yes, twice |
+| Replacement reused the same slot, edict address and serial with a new user ID | Yes | Yes |
+
+The first probe treated loss of the fake flag as a setup failure. The final
+probe recorded the change and restored the flag for the client it had
+allocated. This matches the pinned Ricochet spawn code, which assigns
+`FL_CLIENT` to the flags field. The probe waits for the queued kick to
+run. Assuming it would complete by the next frame caused a false failure
+on both hosts. Direct calls to the original GameDLL table do not test
+Metamod dispatch of the SDK's admission or join hooks.
+[Ricochet spawn source](../upstream/hlsdk/ricochet/dlls/player.cpp)
+
+The final probe SHA-256 was
+`56395761cd9dbd13fc6055760cf9aa5ec41ec75674e7f8a527b9cab650a5b611`.
+Run the same test with the following commands, transferring the built
+probe to the audit host before invoking the run script.
+
+```bash
+bash verify/fake-client/build-linux-i686.sh /tmp/ricochet_probe.so stock
+bash verify/fake-client/run-linux.sh /path/to/saved/installs \
+  /path/to/ricochet_probe.so /path/to/new-stock-probe-run stock
+```
+
+### Implications for the safe API
+
+The observed sequence supports designing a host- and GameDLL-scoped
+operation that publishes a session only after setup succeeds and identity
+is revalidated. The SDK needs an independent session generation and
+should preserve engine allocation evidence across setup. The edict's
+fake flag can be temporarily cleared by the GameDLL, and a reused edict
+can retain its address and serial. The observed engine user IDs helped
+distinguish occupants in this test, while the SDK should still track an
+independent generation.
+
+Model removal as an explicit request with a separate completion
+observation. A disconnect pre-hook can invalidate SDK use of the session,
+but it runs while the native teardown is still in progress. Avoid
+automatic kick or edict removal on allocation or setup failure. The stock
+GameDLL's unprepared disconnect path was deliberately left untested because
+it assumes player private data. Generic safe creation, automatic rollback,
+and immediate portable slot release remain unsupported by the evidence.
+
 ## Remaining verification
 
-Win32 and other manager and GameDLL combinations need their own observations.
-Map transitions, reentrant invalidation after allocation, and safe setup
-of the stock Ricochet GameDLL were outside these live tests. Keep the safe
-SDK API gated on a supported GameDLL initialization and teardown contract.
+Win32 and other manager and GameDLL combinations need their own
+observations. Map transitions and reentrant invalidation during stock
+setup remain open. No SDK API changes were made and these tests are
+separate from compatibility certification.

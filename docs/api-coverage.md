@@ -63,8 +63,9 @@ return `EngineError::Unavailable`.
 
 1. **Establish host behavior.** Live Linux i686 fixture runs covered
    allocation, callback order, full slots, partial setup, and slot reuse
-   on Valve HLDS and ReHLDS with classic Metamod. Win32 and GameDLL-specific
-   setup remain open. [Investigation and live results](fake-client-lifecycle.md)
+   on Valve HLDS and ReHLDS with classic Metamod. Stock Ricochet setup,
+   queued teardown, and reuse also passed on both. Win32 and other
+   GameDLLs remain open. [Investigation and live results](fake-client-lifecycle.md)
 2. **Expose the supported lifecycle.** Add scoped creation and track the
    resulting session with `PlayerId` once its identity is established.
    Revalidate identity after native reentry. Expose session termination only
