@@ -3,6 +3,7 @@
 #include <h_export.h>
 
 // Give bindgen a name for the utilities' anonymous callback type.
+using MetamodGetUserMsgID = decltype(mutil_funcs_t::pfnGetUserMsgID);
 using MetamodLog = decltype(mutil_funcs_t::pfnLogConsole);
 using MetamodServerPrint = decltype(enginefuncs_t::pfnServerPrint);
 using MetamodIndexOfEdict = decltype(enginefuncs_t::pfnIndexOfEdict);

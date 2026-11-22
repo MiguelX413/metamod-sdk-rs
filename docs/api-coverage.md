@@ -9,7 +9,7 @@ pointees have exposed fields or that the functions are safe to call.
 | Interface and upstream inventory | Raw FFI | Safe SDK | Safety requirements and verification |
 | --- | --- | --- | --- |
 | Metamod loader and results, `metamod/meta_api.h`, `plinfo.h`, `h_export.h` | Entry point typedefs, metadata, result globals, and all eight table factory slots | Export macros, startup attachment, resident plugin policy, typed outcomes for synchronous hooks | x86 loader and layout probes. Loader handoff binds server-thread ownership. Mutable result slots belong to the current native invocation. |
-| Metamod utilities, `metamod/mutil.h` | Utility table generated | Console and log output | Fixed formats for varargs. Game info, user-message lookup, entity dispatch, and plugin control still need individual ownership and reentrancy contracts. |
+| Metamod utilities, `metamod/mutil.h` | Utility table generated | Console and log output, user-message lookup | Fixed formats for varargs. Lookup validates native ID and size on an active map. Game info, entity dispatch, and plugin control still need individual ownership and reentrancy contracts. |
 | GameDLL lifecycle and player callbacks, `engine/eiface.h` `DLL_FUNCTIONS`, `metamod/dllapi.h` | Complete callback table | Frame, map activate/deactivate, client admission pre, player put-in-server/disconnect, read-only keyvalue pre, and lag-compensation pre/post | Loader probes cover registrations, original lag-compensation return, and owned pre-activation and deferred keyvalue payloads. The native loader checks admission return values, result slots, and rejection buffers through the C ABI. Rust mocks also cover exact-length and split UTF-8 rejection text, panic containment, and shutdown during admission. User-info editing, save/restore, movement, entity dispatch, and networking hooks remain raw; pointer/out-buffer validity and synchronous results need individual treatment. |
 | NewDLL, `engine/eiface.h` `NEW_DLL_FUNCTIONS` | Complete callback table | Optional game shutdown | Layout and loader probes. Entity-private-data release, collision filtering, and CVar replies remain raw. Their lifetimes and query correlation need separate contracts. |
 | Engine console, commands and CVars, `engine/eiface.h` `enginefuncs_t`, `common/cvardef.h` | Engine slots and CVar layout generated | Native byte printing, validated console names for registration and dispatch, owned command tokens, owned CVar reads, validated borrowed CVar writes | Native harness exercises reentrant commands and CVar storage. Server command execution and arbitrary engine callback hooks remain raw. |
@@ -55,7 +55,7 @@ return `EngineError::Unavailable`.
 2. Finish Win32 verification for [fake-client lifecycle management](#fake-client-lifecycle-management).
    The Linux i686 stock Ricochet milestone is complete on the tested hosts.
 3. Continue [validated user messages](#validated-user-messages) after
-   the payload construction increment, then audit movement and physics and
+   the payload and lookup increments, then audit movement and physics and
    expand raw payload coverage family by family.
 4. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
    using the existing native fixtures, runtime reports, and certification
@@ -88,9 +88,10 @@ Movement, bot AI, and game-specific setup are later work.
    integer and native string fields without native calls. Tests cover
    exact wire bytes, NUL accounting, fixed-size checks, and failed writes
    that preserve the existing payload.
-2. **Validate message identity and recipients.** Resolve registered user
-   message IDs and sizes from the host. Check map phase and recipient
-   identity before starting a send.
+2. **Message and recipient validation complete.** Resolve the registered
+   ID and size through Metamod on the active map. Validate recipients by
+   `PlayerId` and current edict identity. Recheck both at any future send
+   boundary.
 3. **Establish native send guarantees.** Verify who owns the engine's
    in-progress message across begin/write/end, including reentry through
    Metamod and other plugins. The engine uses shared message state and

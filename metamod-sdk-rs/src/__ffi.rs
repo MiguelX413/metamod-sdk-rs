@@ -27,6 +27,7 @@ struct Services {
     id: *mut PluginInfo,
     log: Log,
     console: Log,
+    user_message: raw::MetamodGetUserMsgID,
 }
 
 #[derive(Clone, Copy)]
@@ -250,9 +251,16 @@ pub unsafe fn query(
             // SAFETY: The utility table is readable and the output is writable.
             let log = unsafe { ptr::addr_of!((*utilities).pfnLogMessage).read() };
             let console = unsafe { ptr::addr_of!((*utilities).pfnLogConsole).read() };
+            // SAFETY: The negotiated utility table includes this initialized slot.
+            let user_message = unsafe { ptr::addr_of!((*utilities).pfnGetUserMsgID).read() };
             // SAFETY: This is the loader's writable output slot.
             unsafe { out.write(id) };
-            state.set(State::Queried(Services { id, log, console }));
+            state.set(State::Queried(Services {
+                id,
+                log,
+                console,
+                user_message,
+            }));
             1
         })
     })
@@ -325,6 +333,7 @@ fn make_context<P: Plugin>(scope: &(), services: Services) -> Context<'_> {
         services.id,
         services.log,
         services.console,
+        services.user_message,
         ENGINE.get().print,
         server_command::<P>,
     )
@@ -888,6 +897,7 @@ mod tests {
             id: ptr::null_mut(),
             log: None,
             console: None,
+            user_message: None,
         }));
     }
 
@@ -1099,6 +1109,131 @@ mod tests {
             }
         ));
         assert_eq!(globals.mres, MRES_IGNORED);
+    }
+
+    #[test]
+    fn message_lookup_and_recipient_reject_results_invalidated_by_native_reentry() {
+        use crate::{MessageLookupError, StaleMessageRecipient, UserMessageSize};
+
+        thread_local! {
+            static EDICT: Cell<*mut edict_t> = const { Cell::new(ptr::null_mut()) };
+            static REUSE: Cell<bool> = const { Cell::new(false) };
+        }
+        const SLOT: PlayerSlot = PlayerSlot::new(1).unwrap();
+
+        unsafe extern "C" fn lookup(
+            _: *mut PluginInfo,
+            name: *const c_char,
+            size: *mut c_int,
+        ) -> c_int {
+            // SAFETY: The test supplies the name and initialized writable size slot.
+            match unsafe { CStr::from_ptr(name) }.to_bytes() {
+                b"Fixed" => {
+                    unsafe { size.write(2) };
+                    64
+                }
+                b"Variable" => {
+                    unsafe { size.write(-1) };
+                    255
+                }
+                b"MissingSize" => 65,
+                b"Transition" => {
+                    crate::trace::activate_map();
+                    unsafe { size.write(2) };
+                    64
+                }
+                _ => 0,
+            }
+        }
+
+        unsafe extern "C" fn entity(_: c_int) -> *mut edict_t {
+            if REUSE.replace(false) {
+                // Simulate same-slot reuse with the same native serial.
+                EVENTS.with(|events| events.borrow_mut().join(SLOT, 0));
+            }
+            EDICT.get()
+        }
+
+        #[derive(Default)]
+        struct Fixture;
+        impl Plugin for Fixture {
+            const METADATA: Metadata = METADATA;
+        }
+
+        let mut edict = edict_t::default();
+        EDICT.set(&raw mut edict);
+        let mut globals = EngineGlobals {
+            maxClients: 2,
+            maxEntities: 8,
+            ..Default::default()
+        };
+        // SAFETY: The fixture retains its engine globals for every map below.
+        unsafe { crate::trace::set_globals(&raw mut globals) };
+        ENGINE.set(Engine {
+            entity: Some(entity),
+            ..Default::default()
+        });
+        let services = Services {
+            id: ptr::null_mut(),
+            log: None,
+            console: None,
+            user_message: Some(lookup),
+        };
+        let scope = ();
+        let ctx = make_context::<Fixture>(&scope, services);
+        let mm = ctx.metamod();
+        assert_eq!(
+            mm.user_message(c"Fixed"),
+            Err(MessageLookupError::Unavailable)
+        );
+        crate::trace::activate_map();
+        let without_lookup = make_context::<Fixture>(
+            &scope,
+            Services {
+                user_message: None,
+                ..services
+            },
+        );
+        assert_eq!(
+            without_lookup.metamod().user_message(c"Fixed"),
+            Err(MessageLookupError::Unavailable)
+        );
+        let fixed = mm.user_message(c"Fixed").unwrap();
+        assert_eq!((fixed.id(), fixed.size()), (64, UserMessageSize::Fixed(2)));
+        assert_eq!(
+            mm.user_message(c"Variable").unwrap().size(),
+            UserMessageSize::Variable
+        );
+        assert_eq!(
+            mm.user_message(c"MissingSize"),
+            Err(MessageLookupError::InvalidRegistration)
+        );
+        assert_eq!(
+            mm.user_message(c"Unknown"),
+            Err(MessageLookupError::NotRegistered)
+        );
+        let player = EVENTS
+            .with(|events| events.borrow_mut().join(SLOT, 0))
+            .unwrap();
+        assert_eq!(ctx.message_recipient(player).unwrap().player(), player);
+        REUSE.set(true);
+        assert_eq!(ctx.message_recipient(player), Err(StaleMessageRecipient));
+        let replacement = player_at(SLOT).unwrap();
+        assert_ne!(replacement, player);
+        assert_eq!(
+            ctx.message_recipient(replacement).unwrap().player(),
+            replacement
+        );
+        assert_eq!(
+            mm.user_message(c"Transition"),
+            Err(MessageLookupError::Unavailable)
+        );
+        crate::trace::invalidate_map();
+        reset_players();
+        assert_eq!(
+            ctx.message_recipient(replacement),
+            Err(StaleMessageRecipient)
+        );
     }
 
     #[test]

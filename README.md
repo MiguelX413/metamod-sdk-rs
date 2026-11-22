@@ -362,8 +362,14 @@ an owned, allocation-free buffer. Its 192-byte limit includes string
 terminators and excludes wire framing. A field that exceeds the remaining
 space leaves the payload intact. Use `validate_fixed_size` to check an
 expected payload length before handing it to a protocol-specific layer.
-Construction makes no engine calls. Registration lookup, recipient
-validation, and safe native sending are separate work.
+Construction makes no engine calls. In an active callback,
+`ctx.metamod().user_message(name)` resolves a registration by its native
+C-string name, and `RegisteredUserMessage::validate_payload` checks its
+declared size. `ctx.message_recipient(player_id)` checks a current tracked
+session and its live edict. These observations can expire during later
+native calls. Recipient validation checks identity and leaves protocol
+readiness and eligibility for future delivery checks. Native sending
+remains separate.
 [Messaging milestones](docs/api-coverage.md#validated-user-messages)
 
 ## Architecture and safety

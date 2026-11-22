@@ -120,11 +120,177 @@ impl UserMessagePayload {
     }
 }
 
+/// Payload size declared by the native user-message registration.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UserMessageSize {
+    Fixed(u8),
+    Variable,
+}
+
+/// An observation of a registered user message on the active map.
+/// Resolve it again after changing maps or before a future native send.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegisteredUserMessage {
+    id: u8,
+    size: UserMessageSize,
+}
+
+impl RegisteredUserMessage {
+    pub const fn id(self) -> u8 {
+        self.id
+    }
+
+    pub const fn size(self) -> UserMessageSize {
+        self.size
+    }
+
+    pub fn validate_payload(self, payload: &UserMessagePayload) -> Result<(), MessagePayloadError> {
+        match self.size {
+            UserMessageSize::Fixed(expected) => payload.validate_fixed_size(usize::from(expected)),
+            UserMessageSize::Variable => Ok(()),
+        }
+    }
+
+    fn from_native(id: i32, size: i32) -> Result<Self, MessageLookupError> {
+        if id == 0 {
+            return Err(MessageLookupError::NotRegistered);
+        }
+        let id = u8::try_from(id)
+            .ok()
+            .filter(|id| *id >= 64)
+            .ok_or(MessageLookupError::InvalidRegistration)?;
+        let size = match size {
+            -1 => UserMessageSize::Variable,
+            0.. => {
+                let size = u8::try_from(size)
+                    .ok()
+                    .filter(|size| usize::from(*size) <= MAX_USER_MESSAGE_BYTES)
+                    .ok_or(MessageLookupError::InvalidRegistration)?;
+                UserMessageSize::Fixed(size)
+            }
+            _ => return Err(MessageLookupError::InvalidRegistration),
+        };
+        Ok(Self { id, size })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageLookupError {
+    Unavailable,
+    NotRegistered,
+    InvalidRegistration,
+}
+
+impl fmt::Display for MessageLookupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Unavailable => "user-message lookup requires an active map and Metamod utility",
+            Self::NotRegistered => "user message is not registered",
+            Self::InvalidRegistration => "host returned an invalid user-message ID or size",
+        })
+    }
+}
+
+impl std::error::Error for MessageLookupError {}
+
+impl crate::MetaMod<'_, '_> {
+    /// Look up a registered user message by its native name. A missing
+    /// registration is distinct from a missing utility or active map.
+    pub fn user_message(&self, name: &CStr) -> Result<RegisteredUserMessage, MessageLookupError> {
+        let map = crate::trace::active_map().ok_or(MessageLookupError::Unavailable)?;
+        let lookup = self
+            .context
+            .user_message
+            .ok_or(MessageLookupError::Unavailable)?;
+        // A positive ID without an initialized size is invalid.
+        let mut size = i32::MIN;
+        // SAFETY: The loader supplies the utility and plugin ID. The input
+        // string and writable size slot remain live through native reentry.
+        let id = unsafe { lookup(self.context.id, name.as_ptr(), &mut size) };
+        if crate::trace::active_map() != Some(map) {
+            return Err(MessageLookupError::Unavailable);
+        }
+        RegisteredUserMessage::from_native(id, size)
+    }
+}
+
+/// A player session observed to be current during recipient validation.
+/// Later operations must revalidate the session before using it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MessageRecipient(crate::PlayerId);
+
+impl MessageRecipient {
+    pub const fn player(self) -> crate::PlayerId {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StaleMessageRecipient;
+
+impl fmt::Display for StaleMessageRecipient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("message recipient is not a live tracked player on the active map")
+    }
+}
+
+impl std::error::Error for StaleMessageRecipient {}
+
+impl crate::Context<'_> {
+    /// Validate a tracked session and its live edict. No native pointer
+    /// escapes. This checks identity rather than client protocol readiness.
+    pub fn message_recipient(
+        &self,
+        player: crate::PlayerId,
+    ) -> Result<MessageRecipient, StaleMessageRecipient> {
+        let engine = crate::__ffi::engine().ok_or(StaleMessageRecipient)?;
+        let (current, serial) =
+            crate::__ffi::player_session(player.slot()).ok_or(StaleMessageRecipient)?;
+        if current != player {
+            return Err(StaleMessageRecipient);
+        }
+        let entity = crate::trace::tracked_entity(player.slot().get(), serial)
+            .ok_or(StaleMessageRecipient)?;
+        entity.resolve(engine).ok_or(StaleMessageRecipient)?;
+        // The engine lookup can synchronously disconnect or replace the player.
+        if crate::__ffi::player_session(player.slot()) != Some((player, serial)) {
+            return Err(StaleMessageRecipient);
+        }
+        Ok(MessageRecipient(player))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
 
     use super::*;
+
+    #[test]
+    fn rejects_invalid_ids_and_sizes_and_checks_registered_payload_size() {
+        for (id, size) in [(-1, 0), (63, 0), (256, 0), (64, -2), (64, 193)] {
+            assert_eq!(
+                RegisteredUserMessage::from_native(id, size),
+                Err(MessageLookupError::InvalidRegistration)
+            );
+        }
+        let fixed = RegisteredUserMessage::from_native(64, 192).unwrap();
+        let variable = RegisteredUserMessage::from_native(255, -1).unwrap();
+        let mut payload = UserMessagePayload::new();
+        assert_eq!(
+            fixed.validate_payload(&payload),
+            Err(MessagePayloadError::SizeMismatch {
+                expected: 192,
+                actual: 0,
+            })
+        );
+        assert_eq!(variable.validate_payload(&payload), Ok(()));
+        payload
+            .write_string(&CString::new([1; 191]).unwrap())
+            .unwrap();
+        assert_eq!(fixed.validate_payload(&payload), Ok(()));
+        assert_eq!(variable.validate_payload(&payload), Ok(()));
+    }
 
     #[test]
     fn encodes_integer_fields_and_copies_native_strings() {

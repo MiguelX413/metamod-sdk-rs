@@ -1,4 +1,7 @@
-use metamod_sys::{Log, PluginInfo, raw::MetamodServerPrint};
+use metamod_sys::{
+    Log, PluginInfo,
+    raw::{MetamodGetUserMsgID, MetamodServerPrint},
+};
 use std::{
     error::Error,
     ffi::CStr,
@@ -212,7 +215,8 @@ impl PlayerId {
 /// }
 /// ```
 pub struct Context<'callback> {
-    id: *mut PluginInfo,
+    pub(crate) id: *mut PluginInfo,
+    pub(crate) user_message: MetamodGetUserMsgID,
     log: Log,
     console: Log,
     print: MetamodServerPrint,
@@ -273,7 +277,7 @@ impl<'a> TryFrom<&'a CStr> for &'a MetamodMessage {
 
 /// Scoped access to Metamod's logging and console utilities.
 pub struct MetaMod<'context, 'callback> {
-    context: &'context Context<'callback>,
+    pub(crate) context: &'context Context<'callback>,
 }
 
 fn utility_message<'a>(
@@ -297,6 +301,7 @@ impl<'callback> Context<'callback> {
         id: *mut PluginInfo,
         log: Log,
         console: Log,
+        user_message: MetamodGetUserMsgID,
         print: MetamodServerPrint,
         command: crate::engine::CommandCallback,
     ) -> Self {
@@ -304,6 +309,7 @@ impl<'callback> Context<'callback> {
             id,
             log,
             console,
+            user_message,
             print,
             command,
             scope: PhantomData,

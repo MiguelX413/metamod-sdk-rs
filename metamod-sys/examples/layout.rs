@@ -74,6 +74,10 @@ fn main() {
     );
     println!("log_console {}", offset_of!(MetaUtilities, pfnLogConsole));
     println!("log_message {}", offset_of!(MetaUtilities, pfnLogMessage));
+    println!(
+        "user_message_id {}",
+        offset_of!(MetaUtilities, pfnGetUserMsgID)
+    );
     println!("log_error {}", offset_of!(MetaUtilities, pfnLogError));
     println!(
         "log_developer {}",

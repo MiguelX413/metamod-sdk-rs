@@ -35,6 +35,7 @@ int main() {
     std::printf("MetaUtilities %zu %zu\n", sizeof(mutil_funcs_t), alignof(mutil_funcs_t));
     std::printf("log_console %zu\n", offsetof(mutil_funcs_t, pfnLogConsole));
     std::printf("log_message %zu\n", offsetof(mutil_funcs_t, pfnLogMessage));
+    std::printf("user_message_id %zu\n", offsetof(mutil_funcs_t, pfnGetUserMsgID));
     std::printf("log_error %zu\n", offsetof(mutil_funcs_t, pfnLogError));
     std::printf("log_developer %zu\n", offsetof(mutil_funcs_t, pfnLogDeveloper));
     std::printf("DllFunctions %zu %zu\n", sizeof(DLL_FUNCTIONS), alignof(DLL_FUNCTIONS));
