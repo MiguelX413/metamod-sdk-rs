@@ -278,3 +278,118 @@ The [console fixture provenance](../verify/audit/fixtures/README.md) distinguish
 Hosted Linux ABI jobs archive their loader and combined sanitizer transcripts with the JSONL and aggregate reports. Windows x86 archives the equivalent ABI and loader transcript and runs the Toolhelp test with the installed Python. The strict importer requires all six expected native probe IDs exactly once, a complete audit-plugin command protocol, and both shutdown records. Loader failures and incomplete evidence remain visible even when some assertions completed. The native evidence jobs use the local C++ loader and require no GoldSrc installation.
 
 Comparison JSON separates **severity**, **comparability**, and **attribution**. Historical failure or coverage loss exits with status 1, including a newly failing probe across host configuration drift. An allowance records the expected difference and its rationale. The original result, evidence, and severity still affect the exit status. Host drift limits attribution and cannot establish an SDK regression. Matrix comparisons also surface each failing row independently of row order. Invalid comparison input exits with status 2.
+
+### Diagnosing the first six-row Ricochet run
+
+The dump collector uses filenames only to find candidates. It checks for
+an ELF core header or a minidump header with an in-bounds stream directory
+before copying. Exit codes and crash diagnostics remain independent
+evidence, including on hosts that store dumps outside the stage.
+
+The collector fix is Python-only. Keep using the original i686 audit plugin
+and its original build manifest. The SHA-256 identifies the binary but
+cannot recover its build commit. If the original build record is missing,
+leave provenance unknown until you can recover it or build a new artifact
+from a known clean checkout. Keep separate audit-plugin and SDK revisions
+when the build used different revisions.
+
+On the test machine, once the fix is available on GitHub, use a **separate
+checkout** to run a fresh audit with the previously provisioned matrix.
+Set `OLD` to the saved run that contains the six rows. Keep its matrix,
+artifact, source metadata, and report in place.
+
+```bash
+git clone https://github.com/MiguelX413/metamod-sdk-rs.git "$HOME/metamod-sdk-rs-audit-fix"
+SDK="$HOME/metamod-sdk-rs-audit-fix"
+OLD="$HOME/ricochet-audit-lab/runs/ACTUAL_RUN_ID"
+NEW="$(mktemp -d "$HOME/ricochet-audit-followup.XXXXXX")"
+
+file "$OLD/libmetamod_audit.so"
+sha256sum "$OLD/libmetamod_audit.so"
+# Compare this hash with the saved matrix/build manifest before continuing.
+# The first six-row run used cd510851d4ec735b5434a5ae911b1ff41e78a70338fa4d0a80badb3a00b79714.
+
+python3 "$SDK/verify/audit/runner.py" run "$OLD/matrix.json" "$NEW/classic-rehlds" \
+  --platform linux --only linux-rehlds-classic-stock --only linux-rehlds-classic-updated
+python3 "$SDK/verify/audit/runner.py" certify "$NEW/classic-rehlds/report.json" \
+  core "$NEW/classic-rehlds-cert"
+```
+
+Run all six rows by dropping the two `--only` flags and using another
+output directory. This makes new isolated copies from the saved source
+installations, using the configured prebuilt plugin. It requires neither
+Rust nor a C++ toolchain on the test machine. The bootstrap's `--rerun`
+is for replaying the saved runner revision and plugin. It does not switch
+a saved run to the fixed runner. If you reprovision instead, use a fresh
+bootstrap invocation with `--repo-ref` set to the fixed runner revision,
+`--skip-steam` to reuse the Steam cache, and `--plugin` and
+`--plugin-provenance` pointing to the actual build artifacts.
+
+#### Capture the two startup failures
+
+Start with the stock row for each pair. Prepare new disposable copies
+using the same matrix and artifact. The runner retains the staged files
+and records `launch.json` for each row.
+
+```bash
+python3 "$SDK/verify/audit/runner.py" run "$OLD/matrix.json" "$NEW/diagnostic" \
+  --platform linux --prepare-only \
+  --only linux-hlds-classic-stock --only linux-rehlds-metamod-r-stock
+```
+
+Use the following launcher to preserve the recorded working directory,
+arguments and environment under `strace` and GDB. It removes the
+preparation-only `-condebug` flag to match the automated launch. Install those diagnostic
+tools if needed. Run from the LXC test machine. If GDB reports that ptrace
+is blocked, collect its error as well and rerun on a test host that allows
+debugging child processes.
+
+```bash
+cat >"$NEW/diagnose.py" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+launch_path, mode = sys.argv[1:]
+launch = json.loads(Path(launch_path).read_text())
+argv = launch["argv"]
+if argv[2:3] == ["-condebug"]:
+    del argv[2]
+os.chdir(launch["cwd"])
+env = {**os.environ, **launch["environment"]}
+if mode == "trace":
+    prefix = ["timeout", "--signal=TERM", "--kill-after=3s", "25s",
+              "strace", "-f", "-s", "256", "-e", "trace=execve,openat,readlink,statx"]
+elif mode == "gdb":
+    prefix = ["timeout", "--signal=TERM", "--kill-after=3s", "60s", "gdb", "-q", "-nx", "-batch",
+              "-ex", "set pagination off", "-ex", "set disable-randomization off",
+              "-ex", "run", "-ex", "thread apply all bt full", "-ex", "info registers",
+              "-ex", "info sharedlibrary", "-ex", "info proc mappings",
+              "-ex", "x/12i $pc", "--args"]
+else:
+    raise SystemExit(f"unknown diagnostic mode: {mode}")
+os.execvpe(prefix[0], prefix + argv, env)
+PY
+
+VALVE="$NEW/diagnostic/linux-hlds-classic-stock"
+MMR="$NEW/diagnostic/linux-rehlds-metamod-r-stock"
+python3 "$NEW/diagnose.py" "$VALVE/launch.json" trace >"$NEW/valve-open-trace.log" 2>&1
+python3 "$NEW/diagnose.py" "$MMR/launch.json" gdb >"$NEW/metamod-r-gdb.log" 2>&1
+```
+
+For Valve HLDS, return `launch.json`, the original stdout/stderr, the open
+trace, and the staged `server/ricochet/liblist.gam` and
+`server/ricochet/addons/metamod-audit/config.ini`. The open trace should
+show which listing the engine opened and whether it tried loading the
+staged Metamod library before reporting `controller.cfg`. This distinguishes
+engine-side library selection from later Metamod GameDLL resolution.
+
+For Metamod-R, return `launch.json`, the original stdout/stderr, the GDB log
+including the faulting PC and shared-library mappings, and the original
+runtime metadata with engine, Metamod, GameDLL, and plugin hashes. The last
+`map.activate.v1` event does not prove that the first frame started.
+If the stack reaches the first-frame hook, the SDK's first engine calls
+there are a CVar lookup, registration and read-back, followed by the three
+command registrations. A frame in one of these paths would narrow the
+cause. Keep the stock and updated logs separate if their stacks differ.

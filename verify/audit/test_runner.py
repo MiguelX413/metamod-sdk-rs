@@ -3,6 +3,7 @@ import mmap
 import os
 from pathlib import Path
 import platform
+import struct
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,29 @@ def by_test(results):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_preserve_dumps_requires_crash_file_headers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stage = root / "stage"
+            output = root / "reports"
+            stage.mkdir()
+            output.mkdir()
+            elf32 = struct.pack("<16sHHIIIIIHHHHHH", b"\x7fELF\x01\x01\x01",
+                                4, 3, 1, 0, 0, 0, 0, 52, 0, 0, 0, 0, 0)
+            elf64 = struct.pack(">16sHHIQQQIHHHHHH", b"\x7fELF\x02\x02\x01",
+                                4, 62, 1, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0)
+            mdmp = struct.pack("<4sIIIIIQIII", b"MDMP", 0xa793, 1, 32, 0, 0, 0, 0, 0, 0)
+            genuine = {"core": elf32, "core.17": elf64, "crash.mdmp": mdmp}
+            others = {"core.so": elf32[:16] + b"\x03" + elf32[17:], "core.wav": b"RIFF1234WAVE",
+                      "truncated.core": elf32[:20], "broken.mdmp": mdmp[:32],
+                      "unrelated.dmp": b"not a dump"}
+            for name, data in (genuine | others).items():
+                (stage / name).write_bytes(data)
+            saved = runner.preserve_dumps(stage, output)
+            self.assertEqual({name.split("-", 2)[2] for name in saved}, set(genuine))
+            for name in saved:
+                self.assertEqual((output / name).read_bytes(), genuine[name.split("-", 2)[2]])
+
     def test_template_covers_independent_components(self):
         matrix = runner.matrix_template(False)["runtimes"]
         self.assertEqual(len(matrix), 16)

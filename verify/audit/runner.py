@@ -499,6 +499,24 @@ def configure(stage, spec):
     return config_file, plugin_file, game, deployed_plugin
 
 
+def is_dump_header(header, size):
+    if header.startswith(b"MDMP") and len(header) >= 32:
+        version, streams, directory = struct.unpack_from("<III", header, 4)
+        return version & 0xffff == 0xa793 and streams > 0 and 32 <= directory <= size - streams * 12
+    if not header.startswith(b"\x7fELF") or len(header) < 16:
+        return False
+    layout = {1: (52, 40), 2: (64, 52)}.get(header[4])
+    endian = {1: "<", 2: ">"}.get(header[5])
+    if layout is None or endian is None or header[6] != 1:
+        return False
+    header_size, size_offset = layout
+    if len(header) < header_size:
+        return False
+    kind, machine, version = struct.unpack_from(endian + "HHI", header, 16)
+    return (kind == 4 and machine != 0 and version == 1
+            and struct.unpack_from(endian + "H", header, size_offset)[0] == header_size)
+
+
 def preserve_dumps(stage, output):
     saved = []
     for path in stage.rglob("*"):
@@ -508,8 +526,12 @@ def preserve_dumps(stage, output):
             continue
         if path.suffix.casefold() not in {".mdmp", ".dmp", ".core"} and path.name != "core" and not path.name.startswith("core."):
             continue
-        if path.stat().st_size > 256 * 1024 * 1024:
+        size = path.stat().st_size
+        if size > 256 * 1024 * 1024:
             continue
+        with path.open("rb") as stream:
+            if not is_dump_header(stream.read(64), size):
+                continue
         target = output / f"dump-{len(saved)}-{path.name}"
         shutil.copy2(path, target)
         saved.append(target.name)
