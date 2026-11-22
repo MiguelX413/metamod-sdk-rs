@@ -15,7 +15,7 @@ pointees have exposed fields or that the functions are safe to call.
 | Engine console, commands and CVars, `engine/eiface.h` `enginefuncs_t`, `common/cvardef.h` | Engine slots and CVar layout generated | Native byte printing, validated console names for registration and dispatch, owned command tokens, owned CVar reads, validated borrowed CVar writes | Native harness exercises reentrant commands and CVar storage. Server command execution and arbitrary engine callback hooks remain raw. |
 | Engine players and entities, `engine/eiface.h`, `engine/edict.h`, `engine/progdefs.h` | Callback slots and edict, entvars, and engine globals layouts | Session-aware player lookup, typed `PlayerUserId` and owned auth strings, index lookup, bounded edict discovery, owned spatial and classification snapshots, and retained string keyvalues | Native harness exercises session revalidation. All entity handles check the map epoch, edict serial, and free flag. Discovery and handle resolution require a validated map capacity from engine globals. The x86 probes cover vacant and out-of-range slots, spatial reads, and map transitions. The string-table probe checks signed offsets, reused buffers, and map invalidation. Entity creation/removal and GameDLL-private stored keyvalues remain raw. The keyvalue hook observes dispatched inputs, including keys consumed at load time. |
 | Engine tracing, physics and movement, `engine/eiface.h`, `pm_shared/pm_defs.h` | Engine slots and trace payload layout; movement payloads remain opaque | Validated finite trace segments, owned line and standard hull results, collision mode and generation-checked skip entity | x86 layout/loader probes cover line hit, hull miss, skip entity, and a map transition during a trace. Movement and physics state still require callback-scoped mutation and reentry analysis. |
-| Engine fake clients, messages, events, sound and resources, `engine/eiface.h` | Engine slots | Scoped fake-client identity and queued removal | Fake-client lifecycle is available through an explicitly opted-in GameDLL adapter. The stock Ricochet adapter is verified on two Linux i686 configurations. Message construction needs a complete, validated send operation around the native begin/write/end sequence. Resource registration is phase-dependent. |
+| Engine fake clients, messages, events, sound and resources, `engine/eiface.h` | Engine slots | Scoped fake-client identity and queued removal, owned user-message payload construction | The stock Ricochet adapter is verified on two Linux i686 configurations. Payload tests cover wire encoding, fixed-size checks, and the 192-byte budget. Native sending still needs a validated begin/write/end contract. Resource registration is phase-dependent. |
 | Other SDK data and auxiliary interfaces, `common/`, `engine/`, `pm_shared/`, `dlls/` | Selected transitively referenced types; no blanket header coverage | Pending | Add audited public ABI types by header family. Keep game implementation types and templates outside the ABI surface. |
 
 The Linux i686 layout probes and loader harness passed for both examples.
@@ -52,8 +52,10 @@ return `EngineError::Unavailable`.
 1. Finish live client admission verification on Win32. Linux i686 passed
    deferral, rejection, and reconnect on Valve HLDS with classic Metamod
    and on ReHLDS with Metamod-R. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
-2. Implement [fake-client lifecycle management](#fake-client-lifecycle-management).
-3. Add validated message construction, then audit movement and physics and
+2. Finish Win32 verification for [fake-client lifecycle management](#fake-client-lifecycle-management).
+   The Linux i686 stock Ricochet milestone is complete on the tested hosts.
+3. Continue [validated user messages](#validated-user-messages) after
+   the payload construction increment, then audit movement and physics and
    expand raw payload coverage family by family.
 4. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
    using the existing native fixtures, runtime reports, and certification
@@ -79,6 +81,22 @@ return `EngineError::Unavailable`.
 
 The first increment covers creation, identity, and supported teardown.
 Movement, bot AI, and game-specific setup are later work.
+
+### Validated user messages
+
+1. **Payload construction complete.** `UserMessagePayload` encodes bounded
+   integer and native string fields without native calls. Tests cover
+   exact wire bytes, NUL accounting, fixed-size checks, and failed writes
+   that preserve the existing payload.
+2. **Validate message identity and recipients.** Resolve registered user
+   message IDs and sizes from the host. Check map phase and recipient
+   identity before starting a send.
+3. **Establish native send guarantees.** Verify who owns the engine's
+   in-progress message across begin/write/end, including reentry through
+   Metamod and other plugins. The engine uses shared message state and
+   validates the registered payload size at send time. Establish a sound
+   contract before exposing a safe send operation.
+   [ReHLDS message implementation](https://github.com/rehlds/ReHLDS/blob/1963001/rehlds/engine/pr_cmds.cpp#L2076-L2179)
 
 ### Memory Contracts Validation v1
 

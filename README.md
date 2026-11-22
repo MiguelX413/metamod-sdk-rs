@@ -355,6 +355,17 @@ name byte for byte.
 3. Restore your original name and reconnect to confirm the server still
    accepts ordinary connections.
 
+### Constructing a user-message payload
+
+`UserMessagePayload` assembles GoldSrc integer and C-string fields into
+an owned, allocation-free buffer. Its 192-byte limit includes string
+terminators and excludes wire framing. A field that exceeds the remaining
+space leaves the payload intact. Use `validate_fixed_size` to check an
+expected payload length before handing it to a protocol-specific layer.
+Construction makes no engine calls. Registration lookup, recipient
+validation, and safe native sending are separate work.
+[Messaging milestones](docs/api-coverage.md#validated-user-messages)
+
 ## Architecture and safety
 
 - `metamod-sys` uses libclang to parse a small C++ wrapper around the pinned

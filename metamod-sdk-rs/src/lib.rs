@@ -7,6 +7,7 @@ use std::ffi::CStr;
 pub mod __ffi;
 mod engine;
 mod hooks;
+mod message;
 mod runtime;
 mod trace;
 
@@ -26,6 +27,7 @@ pub use fake_client::{FakeClient, FakeClientError, FakeClientSetup, FakeClientSt
 
 pub use engine::{Command, ConsoleName, CvarValue, EngineError, OwnedConsoleName, PlayerInfo};
 pub use hooks::{ClientAdmission, ClientConnection, HookResult, KeyValueEvent, PostHookResult};
+pub use message::{MAX_USER_MESSAGE_BYTES, MessagePayloadError, UserMessagePayload};
 pub use trace::{
     EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial, Hull,
     TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
@@ -45,10 +47,11 @@ pub mod prelude {
     pub use crate::{
         ClientAdmission, ClientConnection, Command, ConsoleName, Context, CvarValue, EngineError,
         EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial,
-        HookResult, Hull, KeyValueEvent, MetaMod, Metadata, MetamodMessage, MetamodMessageTooLong,
-        OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId, Plugin, PostHookResult,
-        Server, TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
-        console_name, cvar_value, export_plugin,
+        HookResult, Hull, KeyValueEvent, MAX_USER_MESSAGE_BYTES, MessagePayloadError, MetaMod,
+        Metadata, MetamodMessage, MetamodMessageTooLong, OwnedConsoleName, PlayerId, PlayerInfo,
+        PlayerSlot, PlayerUserId, Plugin, PostHookResult, Server, TraceError, TraceMonsters,
+        TraceOptions, TracePlane, TraceResult, TraceSegment, UserMessagePayload, console_name,
+        cvar_value, export_plugin,
     };
 }
 
