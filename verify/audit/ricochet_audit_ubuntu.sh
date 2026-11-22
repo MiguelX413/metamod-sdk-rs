@@ -527,7 +527,7 @@ if (( ! SKIP_APT )); then
     ca-certificates curl git python3 python3-pip unzip zip tar gzip rsync file \
     "${build_packages[@]}" \
     lib32gcc-s1 lib32stdc++6 libc6-i386 libstdc++6:i386 libgcc-s1:i386 \
-    zlib1g:i386 libsdl2-2.0-0:i386 gnupg coreutils procps
+    zlib1g:i386 libsdl2-2.0-0:i386 gnupg coreutils findutils binutils procps
 fi
 for cmd in curl git python3 unzip rsync file timeout sha256sum; do
   command -v "$cmd" >/dev/null || die "Missing prerequisite: $cmd (remove --skip-apt or install it)."
@@ -763,8 +763,56 @@ mkdir -p "$INSTALLS"
 say "Creating standalone, separate HLDS and ReHLDS snapshots."
 # -L materializes any SteamCMD-created symlinks: the repo runner explicitly
 # refuses symlink/reparse-point source trees for safe staging.
-rsync -aL -- "$BASE/" "$INSTALLS/linux-hlds/"
-rsync -aL -- "$BASE/" "$INSTALLS/linux-rehlds/"
+stage_installation() {
+  local source="$1" destination="$2" sdl="$3" repair dynamic
+  local -a excludes=()
+  repair="$(python3 - "$source" <<'PY_LINKS'
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+try:
+    # Match rsync -L, including links inside directories reached through links.
+    links = subprocess.check_output(["find", "-L", str(root), "-type", "l", "-print0"])
+    repair = None
+    for item in links.split(b'\0'):
+        if not item:
+            continue
+        link = Path(os.fsdecode(item))
+        target = os.readlink(link)
+        # Allow only the root-level SDL2 alias for the known SDL2 ABI name.
+        if link == root / "libSDL2.so" and target in {
+            "libSDL2-2.0.so.0", "./libSDL2-2.0.so.0",
+            "/usr/lib/i386-linux-gnu/libSDL2-2.0.so.0",
+        }:
+            repair = f"{link} -> {target}"
+        else:
+            sys.exit(f"Unresolved symlink: {link} -> {target}. Restore its target in the Steam installation before staging.")
+    if repair:
+        print(repair)
+except (OSError, subprocess.CalledProcessError) as error:
+    sys.exit(f"Cannot inspect Steam installation links under {root}: {error}")
+PY_LINKS
+)" || return 1
+  if [[ -n $repair ]]; then
+    [[ -f $sdl ]] || die "$repair. Install libsdl2-2.0-0:i386 or restore the original link target."
+    validate_elf32 "$sdl" || die "$repair. Invalid i686 replacement: $sdl"
+    command -v readelf >/dev/null || die "$repair. Install binutils to verify the replacement SDL2 ABI."
+    dynamic="$(LC_ALL=C readelf -d -- "$sdl")" &&
+      grep -Eq '\(SONAME\).*\[libSDL2-2\.0\.so\.0\][[:space:]]*$' <<< "$dynamic" ||
+      die "$repair. Replacement lacks the SDL2 ABI SONAME: $sdl"
+    excludes=(--exclude='/libSDL2.so')
+    printf 'Staging SDL2 replacement for %s using %s\n' "$repair" "$sdl" >&2
+  fi
+  rsync -aL "${excludes[@]}" -- "$source/" "$destination/" || return 1
+  if [[ -n $repair ]]; then
+    install -m 755 -- "$sdl" "$destination/libSDL2.so"
+  fi
+}
+stage_installation "$BASE" "$INSTALLS/linux-hlds" /usr/lib/i386-linux-gnu/libSDL2-2.0.so.0
+stage_installation "$BASE" "$INSTALLS/linux-rehlds" /usr/lib/i386-linux-gnu/libSDL2-2.0.so.0
 extract_elf32 "$DOWNLOADS/rehlds.zip" 'engine_i486\.so' "$INSTALLS/linux-rehlds/engine_i486.so"
 for variant in linux-hlds linux-rehlds; do
   mod="$INSTALLS/$variant/ricochet"

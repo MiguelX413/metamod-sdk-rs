@@ -24,6 +24,17 @@ You need:
 
 ## Configure and run
 
+The Ubuntu bootstrap checks for dangling links before copying the Steam
+installation. It materializes valid links in both server snapshots. The
+only automatic fallback is for a dangling root-level `libSDL2.so` alias
+that targets the SDL2 runtime name `libSDL2-2.0.so.0` beside the link or
+in Ubuntu's i386 library directory. The bootstrap validates the system
+replacement's Linux i686 ELF header and SDL2 SONAME, then copies it into
+each snapshot. It leaves the Steam tree intact, including on
+`--skip-steam` provisioning. For other broken links, restore the target
+named in the error. Successful staging does not verify that the engine
+can load the library or resolve every symbol it needs.
+
 From the repository root:
 
 ```sh

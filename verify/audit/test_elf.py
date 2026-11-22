@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -35,8 +36,9 @@ class ElfTests(unittest.TestCase):
     def test_ubuntu_validation_and_extraction(self):
         script_dir = Path(__file__).resolve().parent
         script = (script_dir / "ricochet_audit_ubuntu.sh").read_text()
-        functions = "\n".join(name + "() {" + script.split(name + "() {", 1)[1].split("\n}", 1)[0] + "\n}"
-                              for name in ("validate_elf32", "extract_elf32"))
+        functions = 'die() { echo "$*" >&2; exit 1; }\n' + "\n".join(
+            name + "() {" + script.split(name + "() {", 1)[1].split("\n}", 1)[0] + "\n}"
+            for name in ("validate_elf32", "extract_elf32", "stage_installation"))
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             binary = root / "plugin.so"
@@ -69,3 +71,49 @@ class ElfTests(unittest.TestCase):
             rejected = invoke("extract_elf32", archive, r"plugin\.so", output)
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("release.zip:linux/plugin.so: truncated", rejected.stderr)
+
+            if all(shutil.which(cmd) for cmd in ("rsync", "as", "ld", "readelf")) and sys.platform.startswith("linux"):
+                source, destination, sdl = root / "steam", root / "stage", root / "system-sdl.so"
+                source.mkdir()
+                link = source / "libSDL2.so"
+                link.symlink_to("libSDL2-2.0.so.0")
+                (source / "server.cfg").write_text("fixture")
+                (source / "config-link.cfg").symlink_to("server.cfg")
+                obj = root / "fixture.o"
+                subprocess.run(["as", "--32", "-o", str(obj)], input="", text=True, check=True)
+                subprocess.run(["ld", "-m", "elf_i386", "-shared", "-soname", "libSDL2-2.0.so.0",
+                                "-o", str(sdl), str(obj)], check=True)
+                for stage in (destination, root / "stage-again"):
+                    result = invoke("stage_installation", source, stage, sdl)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual((stage / "libSDL2.so").read_bytes(), sdl.read_bytes())
+                    self.assertFalse((stage / "libSDL2.so").is_symlink())
+                    self.assertFalse((stage / "config-link.cfg").is_symlink())
+                    self.assertEqual((stage / "config-link.cfg").read_text(), "fixture")
+                    self.assertTrue(link.is_symlink())
+
+                wrong_sdl = root / "wrong-sdl.so"
+                subprocess.run(["ld", "-m", "elf_i386", "-shared", "-soname", "libunrelated.so",
+                                "-o", str(wrong_sdl), str(obj)], check=True)
+                result = invoke("stage_installation", source, root / "wrong-soname", wrong_sdl)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("lacks the SDL2 ABI SONAME", result.stderr)
+                self.assertIn("libSDL2.so -> libSDL2-2.0.so.0", result.stderr)
+                result = invoke("stage_installation", source, root / "missing-sdl", root / "absent-sdl.so")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Install libsdl2-2.0-0:i386", result.stderr)
+
+                unexpected = source / "other.so"
+                unexpected.symlink_to("absent.so")
+                failed_stage = root / "unexpected"
+                result = invoke("stage_installation", source, failed_stage, sdl)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("other.so -> absent.so", result.stderr)
+                self.assertFalse(failed_stage.exists())
+                unexpected.unlink()
+                link.unlink()
+                link.symlink_to("custom-sdl.so")
+                result = invoke("stage_installation", source, failed_stage, sdl)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("libSDL2.so -> custom-sdl.so", result.stderr)
+                self.assertFalse(failed_stage.exists())
