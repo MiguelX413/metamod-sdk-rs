@@ -157,6 +157,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "metamod-ricochet"
+version = "0.1.0"
+dependencies = [
+ "metamod-sdk-rs",
+]
+
+[[package]]
 name = "metamod-sdk-rs"
 version = "0.1.0"
 dependencies = [

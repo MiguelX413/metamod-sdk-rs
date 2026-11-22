@@ -1,0 +1,16 @@
+[package]
+name = "metamod-ricochet"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Stock Ricochet fake-client setup adapter for the Metamod SDK"
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+metamod-sdk-rs = { path = "../../metamod-sdk-rs", default-features = false }
+
+[[example]]
+name = "ricochet_lifecycle"
+crate-type = ["cdylib"]

@@ -21,6 +21,9 @@ fn ignore_intentionally_retained<T: ?Sized>(allocation: &T) {
     unsafe { __lsan_ignore_object(std::ptr::from_ref(allocation).cast()) };
 }
 
+mod fake_client;
+pub use fake_client::{FakeClient, FakeClientError, FakeClientSetup, FakeClientState};
+
 pub use engine::{Command, ConsoleName, CvarValue, EngineError, OwnedConsoleName, PlayerInfo};
 pub use hooks::{ClientAdmission, ClientConnection, HookResult, KeyValueEvent, PostHookResult};
 pub use trace::{
@@ -243,10 +246,16 @@ macro_rules! export_plugin {
             now: __metamod_ffi::LoadTime,
             table: *mut __metamod_ffi::MetaFunctions,
             globals: *mut __metamod_ffi::MetaGlobals,
-            _: *mut __metamod_ffi::GameDllFunctions,
+            game: *mut __metamod_ffi::GameDllFunctions,
         ) -> ::core::ffi::c_int {
             // SAFETY: The loader supplies the C ABI arguments.
-            unsafe { __metamod_ffi::attach::<$plugin>(now, table, globals) }
+            unsafe {
+                let attached = __metamod_ffi::attach::<$plugin>(now, table, globals);
+                if attached != 0 {
+                    __metamod_ffi::capture_game_dll(game);
+                }
+                attached
+            }
         }
 
         #[unsafe(no_mangle)]

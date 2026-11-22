@@ -15,7 +15,7 @@ pointees have exposed fields or that the functions are safe to call.
 | Engine console, commands and CVars, `engine/eiface.h` `enginefuncs_t`, `common/cvardef.h` | Engine slots and CVar layout generated | Native byte printing, validated console names for registration and dispatch, owned command tokens, owned CVar reads, validated borrowed CVar writes | Native harness exercises reentrant commands and CVar storage. Server command execution and arbitrary engine callback hooks remain raw. |
 | Engine players and entities, `engine/eiface.h`, `engine/edict.h`, `engine/progdefs.h` | Callback slots and edict, entvars, and engine globals layouts | Session-aware player lookup, typed `PlayerUserId` and owned auth strings, index lookup, bounded edict discovery, owned spatial and classification snapshots, and retained string keyvalues | Native harness exercises session revalidation. All entity handles check the map epoch, edict serial, and free flag. Discovery and handle resolution require a validated map capacity from engine globals. The x86 probes cover vacant and out-of-range slots, spatial reads, and map transitions. The string-table probe checks signed offsets, reused buffers, and map invalidation. Entity creation/removal and GameDLL-private stored keyvalues remain raw. The keyvalue hook observes dispatched inputs, including keys consumed at load time. |
 | Engine tracing, physics and movement, `engine/eiface.h`, `pm_shared/pm_defs.h` | Engine slots and trace payload layout; movement payloads remain opaque | Validated finite trace segments, owned line and standard hull results, collision mode and generation-checked skip entity | x86 layout/loader probes cover line hit, hull miss, skip entity, and a map transition during a trace. Movement and physics state still require callback-scoped mutation and reentry analysis. |
-| Engine fake clients, messages, events, sound and resources, `engine/eiface.h` | Engine slots | Pending | Fake client creation needs a partial-failure and disconnect policy. Message construction needs a complete, validated send operation around the native begin/write/end sequence. Resource registration is phase-dependent. |
+| Engine fake clients, messages, events, sound and resources, `engine/eiface.h` | Engine slots | Scoped fake-client identity and queued removal | Fake-client lifecycle is available through an explicitly opted-in GameDLL adapter. The stock Ricochet adapter is verified on two Linux i686 configurations. Message construction needs a complete, validated send operation around the native begin/write/end sequence. Resource registration is phase-dependent. |
 | Other SDK data and auxiliary interfaces, `common/`, `engine/`, `pm_shared/`, `dlls/` | Selected transitively referenced types; no blanket header coverage | Pending | Add audited public ABI types by header family. Keep game implementation types and templates outside the ABI surface. |
 
 The Linux i686 layout probes and loader harness passed for both examples.
@@ -66,11 +66,9 @@ return `EngineError::Unavailable`.
    on Valve HLDS and ReHLDS with classic Metamod. Stock Ricochet setup,
    queued teardown, and reuse also passed on both. Win32 and other
    GameDLLs remain open. [Investigation and live results](fake-client-lifecycle.md)
-2. **Expose the supported lifecycle.** Add scoped creation and track the
-   resulting session with `PlayerId` once its identity is established.
-   Revalidate identity after native reentry. Expose session termination only
-   where the host contract supports it, and document partial failures and
-   unavailable operations.
+2. **Expose the supported lifecycle.** Implemented scoped creation through
+   the separate stock Ricochet adapter, `PlayerId` tracking, and queued
+   removal with explicit confirmation. [SDK and adapter results](fake-client-lifecycle.md#rust-sdk-and-ricochet-adapter)
 3. **Verify the lifecycle.** Exercise creation failure, nested callbacks,
    disconnect, slot reuse, and map transitions with synthetic fixtures.
    Then test the supported sequences on disposable servers and record the

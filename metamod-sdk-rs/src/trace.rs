@@ -61,7 +61,7 @@ pub(crate) fn activate_map() {
     }
 }
 
-fn active_map() -> Option<u64> {
+pub(crate) fn active_map() -> Option<u64> {
     let (generation, active) = MAP.get();
     (active && __ffi::engine_available()).then_some(generation)
 }

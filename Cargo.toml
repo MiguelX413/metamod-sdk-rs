@@ -4,6 +4,7 @@ members = [
     "metamod-sdk-rs",
     "metamod-macros",
     "metamod-audit",
+    "adapters/ricochet",
     "examples/hello-world",
     "examples/engine-demo",
 ]

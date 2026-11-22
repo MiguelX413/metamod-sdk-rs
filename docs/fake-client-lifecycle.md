@@ -158,5 +158,50 @@ and immediate portable slot release remain unsupported by the evidence.
 
 Win32 and other manager and GameDLL combinations need their own
 observations. Map transitions and reentrant invalidation during stock
-setup remain open. No SDK API changes were made and these tests are
-separate from compatibility certification.
+setup remain open. These tests are separate from compatibility certification.
+
+## Rust SDK and Ricochet adapter
+
+The game-agnostic SDK owns identity tracking and removal confirmation.
+The separate `metamod-ricochet` workspace crate supplies stock Ricochet's
+setup sequence. Opt in with `unsafe { Ricochet::new() }` only after
+verifying the documented deployment contract. The unsafe opt-in is
+deliberate because the engine ABI cannot establish which GameDLL setup
+is valid. Once opted in, the adapter accepts a bounded ASCII name and
+exposes a scoped creation method on the callback's server context.
+
+Creation returns a `FakeClient` with a new `PlayerId` after setup and
+identity validation. It does not synthesize admission or join callbacks.
+Setup can fail after engine allocation. The SDK returns `SetupIncomplete`
+and leaves the native slot alone because generic rollback is unsafe.
+Dropping a Rust handle does not disconnect the player.
+
+Call `Server::request_fake_client_removal` with the handle. This queues a
+kick by numeric engine user ID and sets `RemovalQueued`. The disconnect
+hook immediately removes the SDK's `PlayerId` from session lookup. The
+handle reaches `Removed` only after the SDK sees that disconnect and a
+later frame confirms that the slot no longer reports the original user ID.
+A map change, shutdown or conflicting observed join can invalidate the
+handle instead. Without confirmation the request can remain pending.
+The host must not reassign a user ID while an outstanding command can
+still act on it.
+
+The [lifecycle example](../adapters/ricochet/examples/ricochet_lifecycle.rs)
+passed on both isolated Linux i686 stock Ricochet configurations listed
+above. Each run queued and confirmed two removals and observed distinct
+`PlayerId` values for reuse of the same slot. The verified example binary
+had SHA-256
+`770fa1504814de73e95928bf61987c7111961250e3e296be6c62d68416ce6f45`.
+Rust mocks additionally exercised disconnect during setup, allocation
+returning after map retirement, a queued removal invalidated by a map
+change, and a nested frame during confirmation. Win32 and live reentrant
+map changes remain unverified.
+
+```bash
+cargo build --locked --release --target i686-unknown-linux-gnu \
+  -p metamod-ricochet --example ricochet_lifecycle
+```
+
+Transfer `target/i686-unknown-linux-gnu/release/examples/libricochet_lifecycle.so`
+and pass it to the same isolated `run-linux.sh` command in `stock` mode.
+The example is a test plugin for the verified stock deployments.
