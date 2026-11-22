@@ -67,6 +67,36 @@ Only use `--client-wait SECONDS` when an operator is available to connect a loca
 
 ## Compatibility certification
 
+The [November 22, 2026 Ricochet run](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
+certified all six tested Linux i686 configurations under core v2. The
+[JSON certificate](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.json)
+preserves the report digest, component identities, and probe results. Its
+`<original-run-root>` prefix replaces the operator's local run path. The
+source report and console logs remain with the original run. Both formats
+record the shared `hlds_linux` launcher hash and the distinct Valve HLDS
+and ReHLDS `engine_i486.so` hashes.
+
+For a fresh Ubuntu 26.04 x86_64 audit with a prebuilt Linux i686 plugin
+and its existing build manifest, `certify-ricochet-ubuntu.sh` fetches a
+runner revision into `~/ricochet-audit-bootstrap` and delegates fresh
+provisioning and core certification to `ricochet_audit_ubuntu.sh`.
+Run it as a non-root user with sudo access in a dedicated test container.
+The command below selects the historical runner revision for the archived
+run. Select a newer revision to use its current report presentation.
+
+```bash
+bash verify/audit/certify-ricochet-ubuntu.sh \
+  --plugin "$HOME/libmetamod_audit.so" \
+  --manifest "$HOME/audit-build.json" \
+  --repo-ref b9645b5bcf3940d28573881b2d12fbfa9be2142c \
+  --updated-gamedll "$HOME/ricochet_updated.so" --require-six
+```
+
+The manifest must describe the actual plugin build. The runner ref can
+differ from that build revision. The wrapper also detects
+`$HOME/ricochet_updated.so` when `--updated-gamedll` is omitted. If neither
+is available, omit `--require-six` to run the three stock configurations.
+
 Audit execution and certification are separate. Run the automated matrix
 from a clean runner checkout, writing the report outside the checkout. Keep
 `report.json` together with the per-runtime directories containing
@@ -79,7 +109,11 @@ python3 verify/audit/runner.py certify /path/to/report-dir/report.json core /pat
 The command writes `certificate.json` and `certificate.md` in a new
 output directory. It evaluates each runtime independently. Exit status 0
 means every row is certified, 1 means one or more rows did not qualify,
-and 2 means invalid input or an output error. The certificate's schema,
+and 2 means invalid input or an output error. Both outputs record the
+engine executable hash and any configured engine module hashes separately.
+For example, two configurations can share `hlds_linux` and load different
+`engine_i486.so` binaries. If a row records no separate modules, the
+Markdown labels the executable as the engine binary. The certificate's schema,
 the audit protocol, and the profile policy each have a separate version.
 When requirements change, bump the affected profile's version. An earlier
 certificate still describes the earlier policy. Reevaluate the evidence
@@ -114,9 +148,10 @@ transition. The other mandatory probes are runtime-wide, including
 player and gameplay observations. Older reports without suite windows cannot
 establish v2 map coverage and need a fresh run.
 
-With the Ubuntu wrapper, `--rerun latest --failed-only --certify PROFILE`
-reevaluates the saved evidence using the current policy and selects failed,
-incomplete, unverified, and unreported rows. Without `--certify`, it retains
+With `ricochet_audit_ubuntu.sh`, `--rerun latest --failed-only --certify PROFILE`
+reevaluates the saved evidence using the policy in the pinned runner
+checkout and selects failed, incomplete, unverified, and unreported rows.
+Without `--certify`, it retains
 the ordinary audit-health filter. Automatic latest selection skips empty
 matrices and partially recorded attempts. A saved run with an explicit
 selection records the attempted rows separately. Older filtered runs without
@@ -280,6 +315,10 @@ Hosted Linux ABI jobs archive their loader and combined sanitizer transcripts wi
 Comparison JSON separates **severity**, **comparability**, and **attribution**. Historical failure or coverage loss exits with status 1, including a newly failing probe across host configuration drift. An allowance records the expected difference and its rationale. The original result, evidence, and severity still affect the exit status. Host drift limits attribution and cannot establish an SDK regression. Matrix comparisons also surface each failing row independently of row order. Invalid comparison input exits with status 2.
 
 ### Diagnosing the first six-row Ricochet run
+
+These diagnostics describe the initial failed run. The later
+[Ricochet core v2 certificate](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
+records all six rows passing after the staging and registration fixes.
 
 The dump collector uses filenames only to find candidates. It checks for
 an ELF core header or a minidump header with an in-bounds stream directory

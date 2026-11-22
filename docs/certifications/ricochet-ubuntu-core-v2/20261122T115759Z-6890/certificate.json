@@ -1,0 +1,2414 @@
+{
+  "schema_version": 1,
+  "audit_protocol_version": 1,
+  "all_certified": true,
+  "profile": {
+    "name": "core",
+    "version": 2,
+    "required_probes": [
+      "command.arguments.v1",
+      "commands.register.v1",
+      "cvar.roundtrip.v1",
+      "entity.discovery.v1",
+      "entity.snapshot.v1",
+      "errors.v1",
+      "init.v1",
+      "map.activate.v1",
+      "map.deactivate.v1",
+      "map.order.v1",
+      "map.stale.v1",
+      "shutdown.drop.v1",
+      "shutdown.v1",
+      "string.copy.v1",
+      "string.limit.v1",
+      "trace.hull.v1",
+      "trace.line.v1"
+    ]
+  },
+  "report": {
+    "path": "<original-run-root>/report/report.json",
+    "sha256": "0900744dd7209b7897d067e4272974dd51c9b3a7d261b5e6eac76064ebe698c5"
+  },
+  "runtimes": [
+    {
+      "runtime_id": "linux-hlds-classic-stock",
+      "outcome": "CERTIFIED",
+      "runtime": {
+        "id": "linux-hlds-classic-stock",
+        "os": "linux",
+        "architecture": "i686",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.6-2-pve",
+          "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.6-2 (2026-05-29T11:08Z)",
+          "machine": "x86_64",
+          "distribution": {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04"
+          }
+        },
+        "components": {
+          "engine": {
+            "implementation": "Valve HLDS",
+            "version": "1.1.2.1",
+            "binary": "hlds_linux",
+            "modules": {
+              "engine_i486.so": "52e7ed23455eeb49a1561114fcde230b738cf94b40e2d77953555fb32ed07ba8"
+            },
+            "sha256": "f8a46f49c43ceb4a744bc4a415f4360f7fb93ac112a76616f84dd52c26168e18",
+            "version_source": "operator configuration"
+          },
+          "metamod": {
+            "implementation": "alliedmodders/metamod-hl1",
+            "version": "1.21.1-am",
+            "binary": "ricochet/addons/classic/dlls/metamod_i386.so",
+            "console_version": "1.21.1-am",
+            "sha256": "6956fb8be550189c827f14b919d998551c81b34e75becbb705c0b085d5390a20",
+            "version_source": "operator configuration",
+            "loaded_binary": "ricochet/addons/classic/dlls/metamod.so"
+          },
+          "gamedll": {
+            "implementation": "Stock Ricochet",
+            "version": "Steam app 90 steam_legacy",
+            "binary": "ricochet/dlls/ricochet.so",
+            "sha256": "57ea9f913b543d9fdfedcab43edfef8fcf5754fc9fada2bee6cac620eb4ce3e4",
+            "version_source": "operator configuration"
+          }
+        },
+        "experimental": false,
+        "runner_revision": {
+          "commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+          "working_tree_dirty": false
+        },
+        "map_itinerary": [
+          "rc_arena",
+          "rc_deathmatch",
+          "rc_arena",
+          "rc_deathmatch"
+        ],
+        "plugin": {
+          "audit_plugin_commit": null,
+          "sdk_commit": null,
+          "artifact_manifest": {
+            "schema_version": 1,
+            "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+            "audit_plugin_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "sdk_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "working_tree_dirty": false
+          },
+          "implementation": "metamod-audit",
+          "binary": "libmetamod_audit.so",
+          "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+          "target": "i686-unknown-linux-gnu"
+        },
+        "staged_root": "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server"
+      },
+      "required_probes": {
+        "command.arguments.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            55
+          ],
+          "observed": "2 operands, marker length 15"
+        },
+        "commands.register.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            4
+          ],
+          "observed": "[Ok(()), Ok(()), Ok(())]"
+        },
+        "cvar.roundtrip.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            56
+          ],
+          "observed": "write=Ok(()), marker matches=true"
+        },
+        "entity.discovery.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            60
+          ],
+          "observed": "89 live handles"
+        },
+        "entity.snapshot.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            61
+          ],
+          "observed": "keyvalue snapshot=true, classname=true, spatial snapshot=true"
+        },
+        "errors.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            59
+          ],
+          "observed": "negative index=Ok(None); unknown CVar absent"
+        },
+        "init.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            1
+          ],
+          "observed": "initialize"
+        },
+        "map.activate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            52
+          ],
+          "observed": "server_activate"
+        },
+        "map.deactivate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            78
+          ],
+          "observed": "server_deactivate"
+        },
+        "map.order.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            53
+          ],
+          "observed": "deactivation followed by activation"
+        },
+        "map.stale.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            79
+          ],
+          "observed": "checked previous world during deactivation"
+        },
+        "shutdown.drop.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            81
+          ],
+          "observed": "Drop entered after shutdown callback"
+        },
+        "shutdown.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            80
+          ],
+          "observed": "GameShutdown reached Rust cleanup"
+        },
+        "string.copy.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            57
+          ],
+          "observed": "prior copy retained 13 bytes after native write"
+        },
+        "string.limit.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            58
+          ],
+          "observed": "validated local inputs at 1023 and 1024 bytes"
+        },
+        "trace.hull.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            63
+          ],
+          "observed": "fraction=1, hit=false"
+        },
+        "trace.line.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            62
+          ],
+          "observed": "fraction=1, hit=true"
+        }
+      },
+      "map_visits": [
+        {
+          "index": 0,
+          "requested_map": "rc_arena",
+          "after_sequence": 6,
+          "suite_sequence": 17
+        },
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 20,
+          "suite_sequence": 33
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "after_sequence": 36,
+          "suite_sequence": 49
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 52,
+          "suite_sequence": 65
+        }
+      ],
+      "identity": {
+        "engine": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.1.2.1",
+          "observed_versions": [
+            "1.1.2.1"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server/hlds_linux": true,
+            "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server/engine_i486.so": true
+          },
+          "version_fields": [
+            [
+              "exe build",
+              "8684"
+            ],
+            [
+              "exe version",
+              "1.1.2.1/Stdio"
+            ]
+          ]
+        },
+        "metamod": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.21.1-am",
+          "observed_versions": [
+            "1.21.1-am"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server/ricochet/addons/classic/dlls/metamod.so": true
+          },
+          "version_banners": [
+            [
+              "classic",
+              "1.21.1-am"
+            ]
+          ]
+        },
+        "gamedll": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server/ricochet/dlls/ricochet.so": true
+          },
+          "reported_paths": [
+            "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server/ricochet/dlls/ricochet.so"
+          ]
+        },
+        "plugin": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-stock/goldsrc-audit-zr_6y80x/server/ricochet/addons/metamod-audit/libmetamod_audit.so": true
+          },
+          "listed_running": true,
+          "listed_statuses": [
+            "RUN"
+          ],
+          "protocol_reply": true
+        }
+      },
+      "map_transitions": [
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "result": "PASS",
+          "callback_sequences": [
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            50,
+            51,
+            52,
+            53,
+            54
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        }
+      ],
+      "execution": {
+        "execution": "COMPLETE",
+        "exit_status": 0,
+        "shutdown_method": "quit",
+        "protocol_complete": true
+      },
+      "evidence": {
+        "event_log": "<original-run-root>/report/linux-hlds-classic-stock/events.jsonl",
+        "event_log_sha256": "eb4f0a7a043e862f1ddf56393aa0c415655cf5732c53559fd3cbfe7bd3b0e8e9",
+        "run_id": "5521f0a6-f7cb-4988-a6d7-c44f2d937b74"
+      },
+      "reasons": {
+        "failed": [],
+        "unverified": [],
+        "incomplete": []
+      }
+    },
+    {
+      "runtime_id": "linux-hlds-classic-updated",
+      "outcome": "CERTIFIED",
+      "runtime": {
+        "id": "linux-hlds-classic-updated",
+        "os": "linux",
+        "architecture": "i686",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.6-2-pve",
+          "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.6-2 (2026-05-29T11:08Z)",
+          "machine": "x86_64",
+          "distribution": {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04"
+          }
+        },
+        "components": {
+          "engine": {
+            "implementation": "Valve HLDS",
+            "version": "1.1.2.1",
+            "binary": "hlds_linux",
+            "modules": {
+              "engine_i486.so": "52e7ed23455eeb49a1561114fcde230b738cf94b40e2d77953555fb32ed07ba8"
+            },
+            "sha256": "f8a46f49c43ceb4a744bc4a415f4360f7fb93ac112a76616f84dd52c26168e18",
+            "version_source": "operator configuration"
+          },
+          "metamod": {
+            "implementation": "alliedmodders/metamod-hl1",
+            "version": "1.21.1-am",
+            "binary": "ricochet/addons/classic/dlls/metamod_i386.so",
+            "console_version": "1.21.1-am",
+            "sha256": "6956fb8be550189c827f14b919d998551c81b34e75becbb705c0b085d5390a20",
+            "version_source": "operator configuration",
+            "loaded_binary": "ricochet/addons/classic/dlls/metamod.so"
+          },
+          "gamedll": {
+            "implementation": "ricochet-updated",
+            "version": "operator-supplied",
+            "binary": "ricochet/dlls/ricochet_updated.so",
+            "sha256": "f38022611d7991d1666febc969569e40b29e0169bcc1b4aa93e3e947c5b9ced1",
+            "version_source": "operator configuration"
+          }
+        },
+        "experimental": false,
+        "runner_revision": {
+          "commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+          "working_tree_dirty": false
+        },
+        "map_itinerary": [
+          "rc_arena",
+          "rc_deathmatch",
+          "rc_arena",
+          "rc_deathmatch"
+        ],
+        "plugin": {
+          "audit_plugin_commit": null,
+          "sdk_commit": null,
+          "artifact_manifest": {
+            "schema_version": 1,
+            "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+            "audit_plugin_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "sdk_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "working_tree_dirty": false
+          },
+          "implementation": "metamod-audit",
+          "binary": "libmetamod_audit.so",
+          "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+          "target": "i686-unknown-linux-gnu"
+        },
+        "staged_root": "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server"
+      },
+      "required_probes": {
+        "command.arguments.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            55
+          ],
+          "observed": "2 operands, marker length 15"
+        },
+        "commands.register.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            4
+          ],
+          "observed": "[Ok(()), Ok(()), Ok(())]"
+        },
+        "cvar.roundtrip.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            56
+          ],
+          "observed": "write=Ok(()), marker matches=true"
+        },
+        "entity.discovery.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            60
+          ],
+          "observed": "89 live handles"
+        },
+        "entity.snapshot.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            61
+          ],
+          "observed": "keyvalue snapshot=true, classname=true, spatial snapshot=true"
+        },
+        "errors.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            59
+          ],
+          "observed": "negative index=Ok(None); unknown CVar absent"
+        },
+        "init.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            1
+          ],
+          "observed": "initialize"
+        },
+        "map.activate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            52
+          ],
+          "observed": "server_activate"
+        },
+        "map.deactivate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            78
+          ],
+          "observed": "server_deactivate"
+        },
+        "map.order.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            53
+          ],
+          "observed": "deactivation followed by activation"
+        },
+        "map.stale.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            79
+          ],
+          "observed": "checked previous world during deactivation"
+        },
+        "shutdown.drop.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            81
+          ],
+          "observed": "Drop entered after shutdown callback"
+        },
+        "shutdown.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            80
+          ],
+          "observed": "GameShutdown reached Rust cleanup"
+        },
+        "string.copy.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            57
+          ],
+          "observed": "prior copy retained 13 bytes after native write"
+        },
+        "string.limit.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            58
+          ],
+          "observed": "validated local inputs at 1023 and 1024 bytes"
+        },
+        "trace.hull.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            63
+          ],
+          "observed": "fraction=1, hit=false"
+        },
+        "trace.line.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            62
+          ],
+          "observed": "fraction=1, hit=true"
+        }
+      },
+      "map_visits": [
+        {
+          "index": 0,
+          "requested_map": "rc_arena",
+          "after_sequence": 6,
+          "suite_sequence": 17
+        },
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 20,
+          "suite_sequence": 33
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "after_sequence": 36,
+          "suite_sequence": 49
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 52,
+          "suite_sequence": 65
+        }
+      ],
+      "identity": {
+        "engine": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.1.2.1",
+          "observed_versions": [
+            "1.1.2.1"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server/hlds_linux": true,
+            "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server/engine_i486.so": true
+          },
+          "version_fields": [
+            [
+              "exe build",
+              "8684"
+            ],
+            [
+              "exe version",
+              "1.1.2.1/Stdio"
+            ]
+          ]
+        },
+        "metamod": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.21.1-am",
+          "observed_versions": [
+            "1.21.1-am"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server/ricochet/addons/classic/dlls/metamod.so": true
+          },
+          "version_banners": [
+            [
+              "classic",
+              "1.21.1-am"
+            ]
+          ]
+        },
+        "gamedll": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server/ricochet/dlls/ricochet_updated.so": true
+          },
+          "reported_paths": [
+            "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server/ricochet/dlls/ricochet_updated.so"
+          ]
+        },
+        "plugin": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-hlds-classic-updated/goldsrc-audit-zx80_w_d/server/ricochet/addons/metamod-audit/libmetamod_audit.so": true
+          },
+          "listed_running": true,
+          "listed_statuses": [
+            "RUN"
+          ],
+          "protocol_reply": true
+        }
+      },
+      "map_transitions": [
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "result": "PASS",
+          "callback_sequences": [
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            50,
+            51,
+            52,
+            53,
+            54
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        }
+      ],
+      "execution": {
+        "execution": "COMPLETE",
+        "exit_status": 0,
+        "shutdown_method": "quit",
+        "protocol_complete": true
+      },
+      "evidence": {
+        "event_log": "<original-run-root>/report/linux-hlds-classic-updated/events.jsonl",
+        "event_log_sha256": "be63e2c9a770f2014679973001515eb8b930fc95f26e4e7b71a94700af76d5db",
+        "run_id": "5521f0a6-f7cb-4988-a6d7-c44f2d937b74"
+      },
+      "reasons": {
+        "failed": [],
+        "unverified": [],
+        "incomplete": []
+      }
+    },
+    {
+      "runtime_id": "linux-rehlds-classic-stock",
+      "outcome": "CERTIFIED",
+      "runtime": {
+        "id": "linux-rehlds-classic-stock",
+        "os": "linux",
+        "architecture": "i686",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.6-2-pve",
+          "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.6-2 (2026-05-29T11:08Z)",
+          "machine": "x86_64",
+          "distribution": {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04"
+          }
+        },
+        "components": {
+          "engine": {
+            "implementation": "ReHLDS",
+            "version": "3.15.0.896",
+            "binary": "hlds_linux",
+            "modules": {
+              "engine_i486.so": "5bb5d862b7e65ced8c9cc5a2159d52d5522e3eb784ba0eb88e6624a410566e99"
+            },
+            "console_version": "3.15.0.896-dev",
+            "sha256": "f8a46f49c43ceb4a744bc4a415f4360f7fb93ac112a76616f84dd52c26168e18",
+            "version_source": "operator configuration"
+          },
+          "metamod": {
+            "implementation": "alliedmodders/metamod-hl1",
+            "version": "1.21.1-am",
+            "binary": "ricochet/addons/classic/dlls/metamod_i386.so",
+            "console_version": "1.21.1-am",
+            "sha256": "6956fb8be550189c827f14b919d998551c81b34e75becbb705c0b085d5390a20",
+            "version_source": "operator configuration"
+          },
+          "gamedll": {
+            "implementation": "Stock Ricochet",
+            "version": "Steam app 90 steam_legacy",
+            "binary": "ricochet/dlls/ricochet.so",
+            "sha256": "57ea9f913b543d9fdfedcab43edfef8fcf5754fc9fada2bee6cac620eb4ce3e4",
+            "version_source": "operator configuration"
+          }
+        },
+        "experimental": false,
+        "runner_revision": {
+          "commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+          "working_tree_dirty": false
+        },
+        "map_itinerary": [
+          "rc_arena",
+          "rc_deathmatch",
+          "rc_arena",
+          "rc_deathmatch"
+        ],
+        "plugin": {
+          "audit_plugin_commit": null,
+          "sdk_commit": null,
+          "artifact_manifest": {
+            "schema_version": 1,
+            "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+            "audit_plugin_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "sdk_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "working_tree_dirty": false
+          },
+          "implementation": "metamod-audit",
+          "binary": "libmetamod_audit.so",
+          "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+          "target": "i686-unknown-linux-gnu"
+        },
+        "staged_root": "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server"
+      },
+      "required_probes": {
+        "command.arguments.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            55
+          ],
+          "observed": "2 operands, marker length 15"
+        },
+        "commands.register.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            4
+          ],
+          "observed": "[Ok(()), Ok(()), Ok(())]"
+        },
+        "cvar.roundtrip.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            56
+          ],
+          "observed": "write=Ok(()), marker matches=true"
+        },
+        "entity.discovery.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            60
+          ],
+          "observed": "90 live handles"
+        },
+        "entity.snapshot.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            61
+          ],
+          "observed": "keyvalue snapshot=true, classname=true, spatial snapshot=true"
+        },
+        "errors.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            59
+          ],
+          "observed": "negative index=Ok(None); unknown CVar absent"
+        },
+        "init.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            1
+          ],
+          "observed": "initialize"
+        },
+        "map.activate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            52
+          ],
+          "observed": "server_activate"
+        },
+        "map.deactivate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            78
+          ],
+          "observed": "server_deactivate"
+        },
+        "map.order.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            53
+          ],
+          "observed": "deactivation followed by activation"
+        },
+        "map.stale.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            79
+          ],
+          "observed": "checked previous world during deactivation"
+        },
+        "shutdown.drop.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            81
+          ],
+          "observed": "Drop entered after shutdown callback"
+        },
+        "shutdown.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            80
+          ],
+          "observed": "GameShutdown reached Rust cleanup"
+        },
+        "string.copy.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            57
+          ],
+          "observed": "prior copy retained 13 bytes after native write"
+        },
+        "string.limit.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            58
+          ],
+          "observed": "validated local inputs at 1023 and 1024 bytes"
+        },
+        "trace.hull.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            63
+          ],
+          "observed": "fraction=1, hit=false"
+        },
+        "trace.line.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            62
+          ],
+          "observed": "fraction=1, hit=true"
+        }
+      },
+      "map_visits": [
+        {
+          "index": 0,
+          "requested_map": "rc_arena",
+          "after_sequence": 6,
+          "suite_sequence": 17
+        },
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 20,
+          "suite_sequence": 33
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "after_sequence": 36,
+          "suite_sequence": 49
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 52,
+          "suite_sequence": 65
+        }
+      ],
+      "identity": {
+        "engine": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "3.15.0.896-dev",
+          "observed_versions": [
+            "3.15.0.896-dev"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server/hlds_linux": true,
+            "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server/engine_i486.so": true
+          },
+          "version_fields": [
+            [
+              "exe build",
+              "4419"
+            ],
+            [
+              "exe version",
+              "1.1.2.1/Stdio"
+            ],
+            [
+              "rehlds version",
+              "3.15.0.896-dev"
+            ]
+          ]
+        },
+        "metamod": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.21.1-am",
+          "observed_versions": [
+            "1.21.1-am"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server/ricochet/addons/classic/dlls/metamod_i386.so": true
+          },
+          "version_banners": [
+            [
+              "classic",
+              "1.21.1-am"
+            ]
+          ]
+        },
+        "gamedll": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server/ricochet/dlls/ricochet.so": true
+          },
+          "reported_paths": [
+            "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server/ricochet/dlls/ricochet.so"
+          ]
+        },
+        "plugin": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-stock/goldsrc-audit-t67rl3l9/server/ricochet/addons/metamod-audit/libmetamod_audit.so": true
+          },
+          "listed_running": true,
+          "listed_statuses": [
+            "RUN"
+          ],
+          "protocol_reply": true
+        }
+      },
+      "map_transitions": [
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "result": "PASS",
+          "callback_sequences": [
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            50,
+            51,
+            52,
+            53,
+            54
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        }
+      ],
+      "execution": {
+        "execution": "COMPLETE",
+        "exit_status": 0,
+        "shutdown_method": "quit",
+        "protocol_complete": true
+      },
+      "evidence": {
+        "event_log": "<original-run-root>/report/linux-rehlds-classic-stock/events.jsonl",
+        "event_log_sha256": "97e7c1fec7628dede2d8ef6cd5a5869fe9ee0146b61df7aede482dd932107479",
+        "run_id": "5521f0a6-f7cb-4988-a6d7-c44f2d937b74"
+      },
+      "reasons": {
+        "failed": [],
+        "unverified": [],
+        "incomplete": []
+      }
+    },
+    {
+      "runtime_id": "linux-rehlds-classic-updated",
+      "outcome": "CERTIFIED",
+      "runtime": {
+        "id": "linux-rehlds-classic-updated",
+        "os": "linux",
+        "architecture": "i686",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.6-2-pve",
+          "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.6-2 (2026-05-29T11:08Z)",
+          "machine": "x86_64",
+          "distribution": {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04"
+          }
+        },
+        "components": {
+          "engine": {
+            "implementation": "ReHLDS",
+            "version": "3.15.0.896",
+            "binary": "hlds_linux",
+            "modules": {
+              "engine_i486.so": "5bb5d862b7e65ced8c9cc5a2159d52d5522e3eb784ba0eb88e6624a410566e99"
+            },
+            "console_version": "3.15.0.896-dev",
+            "sha256": "f8a46f49c43ceb4a744bc4a415f4360f7fb93ac112a76616f84dd52c26168e18",
+            "version_source": "operator configuration"
+          },
+          "metamod": {
+            "implementation": "alliedmodders/metamod-hl1",
+            "version": "1.21.1-am",
+            "binary": "ricochet/addons/classic/dlls/metamod_i386.so",
+            "console_version": "1.21.1-am",
+            "sha256": "6956fb8be550189c827f14b919d998551c81b34e75becbb705c0b085d5390a20",
+            "version_source": "operator configuration"
+          },
+          "gamedll": {
+            "implementation": "ricochet-updated",
+            "version": "operator-supplied",
+            "binary": "ricochet/dlls/ricochet_updated.so",
+            "sha256": "f38022611d7991d1666febc969569e40b29e0169bcc1b4aa93e3e947c5b9ced1",
+            "version_source": "operator configuration"
+          }
+        },
+        "experimental": false,
+        "runner_revision": {
+          "commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+          "working_tree_dirty": false
+        },
+        "map_itinerary": [
+          "rc_arena",
+          "rc_deathmatch",
+          "rc_arena",
+          "rc_deathmatch"
+        ],
+        "plugin": {
+          "audit_plugin_commit": null,
+          "sdk_commit": null,
+          "artifact_manifest": {
+            "schema_version": 1,
+            "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+            "audit_plugin_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "sdk_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "working_tree_dirty": false
+          },
+          "implementation": "metamod-audit",
+          "binary": "libmetamod_audit.so",
+          "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+          "target": "i686-unknown-linux-gnu"
+        },
+        "staged_root": "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server"
+      },
+      "required_probes": {
+        "command.arguments.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            55
+          ],
+          "observed": "2 operands, marker length 15"
+        },
+        "commands.register.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            4
+          ],
+          "observed": "[Ok(()), Ok(()), Ok(())]"
+        },
+        "cvar.roundtrip.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            56
+          ],
+          "observed": "write=Ok(()), marker matches=true"
+        },
+        "entity.discovery.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            60
+          ],
+          "observed": "90 live handles"
+        },
+        "entity.snapshot.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            61
+          ],
+          "observed": "keyvalue snapshot=true, classname=true, spatial snapshot=true"
+        },
+        "errors.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            59
+          ],
+          "observed": "negative index=Ok(None); unknown CVar absent"
+        },
+        "init.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            1
+          ],
+          "observed": "initialize"
+        },
+        "map.activate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            52
+          ],
+          "observed": "server_activate"
+        },
+        "map.deactivate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            78
+          ],
+          "observed": "server_deactivate"
+        },
+        "map.order.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            53
+          ],
+          "observed": "deactivation followed by activation"
+        },
+        "map.stale.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            79
+          ],
+          "observed": "checked previous world during deactivation"
+        },
+        "shutdown.drop.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            81
+          ],
+          "observed": "Drop entered after shutdown callback"
+        },
+        "shutdown.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            80
+          ],
+          "observed": "GameShutdown reached Rust cleanup"
+        },
+        "string.copy.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            57
+          ],
+          "observed": "prior copy retained 13 bytes after native write"
+        },
+        "string.limit.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            58
+          ],
+          "observed": "validated local inputs at 1023 and 1024 bytes"
+        },
+        "trace.hull.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            63
+          ],
+          "observed": "fraction=1, hit=false"
+        },
+        "trace.line.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            62
+          ],
+          "observed": "fraction=1, hit=true"
+        }
+      },
+      "map_visits": [
+        {
+          "index": 0,
+          "requested_map": "rc_arena",
+          "after_sequence": 6,
+          "suite_sequence": 17
+        },
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 20,
+          "suite_sequence": 33
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "after_sequence": 36,
+          "suite_sequence": 49
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 52,
+          "suite_sequence": 65
+        }
+      ],
+      "identity": {
+        "engine": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "3.15.0.896-dev",
+          "observed_versions": [
+            "3.15.0.896-dev"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server/hlds_linux": true,
+            "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server/engine_i486.so": true
+          },
+          "version_fields": [
+            [
+              "exe build",
+              "4419"
+            ],
+            [
+              "exe version",
+              "1.1.2.1/Stdio"
+            ],
+            [
+              "rehlds version",
+              "3.15.0.896-dev"
+            ]
+          ]
+        },
+        "metamod": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.21.1-am",
+          "observed_versions": [
+            "1.21.1-am"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server/ricochet/addons/classic/dlls/metamod_i386.so": true
+          },
+          "version_banners": [
+            [
+              "classic",
+              "1.21.1-am"
+            ]
+          ]
+        },
+        "gamedll": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server/ricochet/dlls/ricochet_updated.so": true
+          },
+          "reported_paths": [
+            "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server/ricochet/dlls/ricochet_updated.so"
+          ]
+        },
+        "plugin": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-classic-updated/goldsrc-audit-5di1pdba/server/ricochet/addons/metamod-audit/libmetamod_audit.so": true
+          },
+          "listed_running": true,
+          "listed_statuses": [
+            "RUN"
+          ],
+          "protocol_reply": true
+        }
+      },
+      "map_transitions": [
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "result": "PASS",
+          "callback_sequences": [
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            50,
+            51,
+            52,
+            53,
+            54
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        }
+      ],
+      "execution": {
+        "execution": "COMPLETE",
+        "exit_status": 0,
+        "shutdown_method": "quit",
+        "protocol_complete": true
+      },
+      "evidence": {
+        "event_log": "<original-run-root>/report/linux-rehlds-classic-updated/events.jsonl",
+        "event_log_sha256": "7a55494d06f4787cf655df5740c1390692264a48839dced6372ebba54a1bdfed",
+        "run_id": "5521f0a6-f7cb-4988-a6d7-c44f2d937b74"
+      },
+      "reasons": {
+        "failed": [],
+        "unverified": [],
+        "incomplete": []
+      }
+    },
+    {
+      "runtime_id": "linux-rehlds-metamod-r-stock",
+      "outcome": "CERTIFIED",
+      "runtime": {
+        "id": "linux-rehlds-metamod-r-stock",
+        "os": "linux",
+        "architecture": "i686",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.6-2-pve",
+          "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.6-2 (2026-05-29T11:08Z)",
+          "machine": "x86_64",
+          "distribution": {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04"
+          }
+        },
+        "components": {
+          "engine": {
+            "implementation": "ReHLDS",
+            "version": "3.15.0.896",
+            "binary": "hlds_linux",
+            "modules": {
+              "engine_i486.so": "5bb5d862b7e65ced8c9cc5a2159d52d5522e3eb784ba0eb88e6624a410566e99"
+            },
+            "console_version": "3.15.0.896-dev",
+            "sha256": "f8a46f49c43ceb4a744bc4a415f4360f7fb93ac112a76616f84dd52c26168e18",
+            "version_source": "operator configuration"
+          },
+          "metamod": {
+            "implementation": "Metamod-R",
+            "version": "1.3.0.149",
+            "binary": "ricochet/addons/metamod-r/dlls/metamod_i386.so",
+            "console_version": "1.3.0.149",
+            "sha256": "8bed09c362f6d9019ce7d88b9a19d1ad08eca26bf46c0ed32604fbea2d7ba7a9",
+            "version_source": "operator configuration"
+          },
+          "gamedll": {
+            "implementation": "Stock Ricochet",
+            "version": "Steam app 90 steam_legacy",
+            "binary": "ricochet/dlls/ricochet.so",
+            "sha256": "57ea9f913b543d9fdfedcab43edfef8fcf5754fc9fada2bee6cac620eb4ce3e4",
+            "version_source": "operator configuration"
+          }
+        },
+        "experimental": false,
+        "runner_revision": {
+          "commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+          "working_tree_dirty": false
+        },
+        "map_itinerary": [
+          "rc_arena",
+          "rc_deathmatch",
+          "rc_arena",
+          "rc_deathmatch"
+        ],
+        "plugin": {
+          "audit_plugin_commit": null,
+          "sdk_commit": null,
+          "artifact_manifest": {
+            "schema_version": 1,
+            "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+            "audit_plugin_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "sdk_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "working_tree_dirty": false
+          },
+          "implementation": "metamod-audit",
+          "binary": "libmetamod_audit.so",
+          "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+          "target": "i686-unknown-linux-gnu"
+        },
+        "staged_root": "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server"
+      },
+      "required_probes": {
+        "command.arguments.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            55
+          ],
+          "observed": "2 operands, marker length 15"
+        },
+        "commands.register.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            4
+          ],
+          "observed": "[Ok(()), Ok(()), Ok(())]"
+        },
+        "cvar.roundtrip.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            56
+          ],
+          "observed": "write=Ok(()), marker matches=true"
+        },
+        "entity.discovery.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            60
+          ],
+          "observed": "90 live handles"
+        },
+        "entity.snapshot.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            61
+          ],
+          "observed": "keyvalue snapshot=true, classname=true, spatial snapshot=true"
+        },
+        "errors.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            59
+          ],
+          "observed": "negative index=Ok(None); unknown CVar absent"
+        },
+        "init.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            1
+          ],
+          "observed": "initialize"
+        },
+        "map.activate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            52
+          ],
+          "observed": "server_activate"
+        },
+        "map.deactivate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            78
+          ],
+          "observed": "server_deactivate"
+        },
+        "map.order.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            53
+          ],
+          "observed": "deactivation followed by activation"
+        },
+        "map.stale.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            79
+          ],
+          "observed": "checked previous world during deactivation"
+        },
+        "shutdown.drop.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            81
+          ],
+          "observed": "Drop entered after shutdown callback"
+        },
+        "shutdown.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            80
+          ],
+          "observed": "GameShutdown reached Rust cleanup"
+        },
+        "string.copy.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            57
+          ],
+          "observed": "prior copy retained 13 bytes after native write"
+        },
+        "string.limit.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            58
+          ],
+          "observed": "validated local inputs at 1023 and 1024 bytes"
+        },
+        "trace.hull.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            63
+          ],
+          "observed": "fraction=1, hit=false"
+        },
+        "trace.line.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            62
+          ],
+          "observed": "fraction=1, hit=true"
+        }
+      },
+      "map_visits": [
+        {
+          "index": 0,
+          "requested_map": "rc_arena",
+          "after_sequence": 6,
+          "suite_sequence": 17
+        },
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 20,
+          "suite_sequence": 33
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "after_sequence": 36,
+          "suite_sequence": 49
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 52,
+          "suite_sequence": 65
+        }
+      ],
+      "identity": {
+        "engine": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "3.15.0.896-dev",
+          "observed_versions": [
+            "3.15.0.896-dev"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server/hlds_linux": true,
+            "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server/engine_i486.so": true
+          },
+          "version_fields": [
+            [
+              "exe build",
+              "4419"
+            ],
+            [
+              "exe version",
+              "1.1.2.1/Stdio"
+            ],
+            [
+              "rehlds version",
+              "3.15.0.896-dev"
+            ]
+          ]
+        },
+        "metamod": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.3.0.149",
+          "observed_versions": [
+            "1.3.0.149"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server/ricochet/addons/metamod-r/dlls/metamod_i386.so": true
+          },
+          "version_banners": [
+            [
+              "metamod-r",
+              "1.3.0.149"
+            ]
+          ]
+        },
+        "gamedll": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server/ricochet/dlls/ricochet.so": true
+          },
+          "reported_paths": [
+            "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server/ricochet/dlls/ricochet.so"
+          ]
+        },
+        "plugin": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-stock/goldsrc-audit-emp_zu92/server/ricochet/addons/metamod-audit/libmetamod_audit.so": true
+          },
+          "listed_running": true,
+          "listed_statuses": [
+            "RUN"
+          ],
+          "protocol_reply": true
+        }
+      },
+      "map_transitions": [
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "result": "PASS",
+          "callback_sequences": [
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            50,
+            51,
+            52,
+            53,
+            54
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        }
+      ],
+      "execution": {
+        "execution": "COMPLETE",
+        "exit_status": 0,
+        "shutdown_method": "quit",
+        "protocol_complete": true
+      },
+      "evidence": {
+        "event_log": "<original-run-root>/report/linux-rehlds-metamod-r-stock/events.jsonl",
+        "event_log_sha256": "f05cbc91bd5a556a0c98615564a3c0512aff12f4933183194cc8a379c9c97902",
+        "run_id": "5521f0a6-f7cb-4988-a6d7-c44f2d937b74"
+      },
+      "reasons": {
+        "failed": [],
+        "unverified": [],
+        "incomplete": []
+      }
+    },
+    {
+      "runtime_id": "linux-rehlds-metamod-r-updated",
+      "outcome": "CERTIFIED",
+      "runtime": {
+        "id": "linux-rehlds-metamod-r-updated",
+        "os": "linux",
+        "architecture": "i686",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.6-2-pve",
+          "version": "#1 SMP PREEMPT_DYNAMIC PMX 7.0.6-2 (2026-05-29T11:08Z)",
+          "machine": "x86_64",
+          "distribution": {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04"
+          }
+        },
+        "components": {
+          "engine": {
+            "implementation": "ReHLDS",
+            "version": "3.15.0.896",
+            "binary": "hlds_linux",
+            "modules": {
+              "engine_i486.so": "5bb5d862b7e65ced8c9cc5a2159d52d5522e3eb784ba0eb88e6624a410566e99"
+            },
+            "console_version": "3.15.0.896-dev",
+            "sha256": "f8a46f49c43ceb4a744bc4a415f4360f7fb93ac112a76616f84dd52c26168e18",
+            "version_source": "operator configuration"
+          },
+          "metamod": {
+            "implementation": "Metamod-R",
+            "version": "1.3.0.149",
+            "binary": "ricochet/addons/metamod-r/dlls/metamod_i386.so",
+            "console_version": "1.3.0.149",
+            "sha256": "8bed09c362f6d9019ce7d88b9a19d1ad08eca26bf46c0ed32604fbea2d7ba7a9",
+            "version_source": "operator configuration"
+          },
+          "gamedll": {
+            "implementation": "ricochet-updated",
+            "version": "operator-supplied",
+            "binary": "ricochet/dlls/ricochet_updated.so",
+            "sha256": "f38022611d7991d1666febc969569e40b29e0169bcc1b4aa93e3e947c5b9ced1",
+            "version_source": "operator configuration"
+          }
+        },
+        "experimental": false,
+        "runner_revision": {
+          "commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+          "working_tree_dirty": false
+        },
+        "map_itinerary": [
+          "rc_arena",
+          "rc_deathmatch",
+          "rc_arena",
+          "rc_deathmatch"
+        ],
+        "plugin": {
+          "audit_plugin_commit": null,
+          "sdk_commit": null,
+          "artifact_manifest": {
+            "schema_version": 1,
+            "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+            "audit_plugin_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "sdk_commit": "b9645b5bcf3940d28573881b2d12fbfa9be2142c",
+            "working_tree_dirty": false
+          },
+          "implementation": "metamod-audit",
+          "binary": "libmetamod_audit.so",
+          "sha256": "bfdbf34ea5a66cefc191e824b9e6b3572ea054cd1aebc19328df6e4b545771b8",
+          "target": "i686-unknown-linux-gnu"
+        },
+        "staged_root": "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server"
+      },
+      "required_probes": {
+        "command.arguments.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            55
+          ],
+          "observed": "2 operands, marker length 15"
+        },
+        "commands.register.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            4
+          ],
+          "observed": "[Ok(()), Ok(()), Ok(())]"
+        },
+        "cvar.roundtrip.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            56
+          ],
+          "observed": "write=Ok(()), marker matches=true"
+        },
+        "entity.discovery.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            60
+          ],
+          "observed": "90 live handles"
+        },
+        "entity.snapshot.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            61
+          ],
+          "observed": "keyvalue snapshot=true, classname=true, spatial snapshot=true"
+        },
+        "errors.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            59
+          ],
+          "observed": "negative index=Ok(None); unknown CVar absent"
+        },
+        "init.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            1
+          ],
+          "observed": "initialize"
+        },
+        "map.activate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            52
+          ],
+          "observed": "server_activate"
+        },
+        "map.deactivate.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            78
+          ],
+          "observed": "server_deactivate"
+        },
+        "map.order.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            53
+          ],
+          "observed": "deactivation followed by activation"
+        },
+        "map.stale.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            79
+          ],
+          "observed": "checked previous world during deactivation"
+        },
+        "shutdown.drop.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            81
+          ],
+          "observed": "Drop entered after shutdown callback"
+        },
+        "shutdown.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            80
+          ],
+          "observed": "GameShutdown reached Rust cleanup"
+        },
+        "string.copy.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            57
+          ],
+          "observed": "prior copy retained 13 bytes after native write"
+        },
+        "string.limit.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            58
+          ],
+          "observed": "validated local inputs at 1023 and 1024 bytes"
+        },
+        "trace.hull.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            63
+          ],
+          "observed": "fraction=1, hit=false"
+        },
+        "trace.line.v1": {
+          "result": "PASS",
+          "source": "plugin",
+          "supported": true,
+          "event_sequences": [
+            62
+          ],
+          "observed": "fraction=1, hit=true"
+        }
+      },
+      "map_visits": [
+        {
+          "index": 0,
+          "requested_map": "rc_arena",
+          "after_sequence": 6,
+          "suite_sequence": 17
+        },
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 20,
+          "suite_sequence": 33
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "after_sequence": 36,
+          "suite_sequence": 49
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "after_sequence": 52,
+          "suite_sequence": 65
+        }
+      ],
+      "identity": {
+        "engine": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "3.15.0.896-dev",
+          "observed_versions": [
+            "3.15.0.896-dev"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server/hlds_linux": true,
+            "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server/engine_i486.so": true
+          },
+          "version_fields": [
+            [
+              "exe build",
+              "4419"
+            ],
+            [
+              "exe version",
+              "1.1.2.1/Stdio"
+            ],
+            [
+              "rehlds version",
+              "3.15.0.896-dev"
+            ]
+          ]
+        },
+        "metamod": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": "1.3.0.149",
+          "observed_versions": [
+            "1.3.0.149"
+          ],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server/ricochet/addons/metamod-r/dlls/metamod_i386.so": true
+          },
+          "version_banners": [
+            [
+              "metamod-r",
+              "1.3.0.149"
+            ]
+          ]
+        },
+        "gamedll": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server/ricochet/dlls/ricochet_updated.so": true
+          },
+          "reported_paths": [
+            "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server/ricochet/dlls/ricochet_updated.so"
+          ]
+        },
+        "plugin": {
+          "result": "PASS",
+          "reasons": [],
+          "expected_console_version": null,
+          "observed_versions": [],
+          "mapped_artifacts": {
+            "<original-run-root>/report/linux-rehlds-metamod-r-updated/goldsrc-audit-lhh3k60v/server/ricochet/addons/metamod-audit/libmetamod_audit.so": true
+          },
+          "listed_running": true,
+          "listed_statuses": [
+            "RUN"
+          ],
+          "protocol_reply": true
+        }
+      },
+      "map_transitions": [
+        {
+          "index": 1,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 2,
+          "requested_map": "rc_arena",
+          "result": "PASS",
+          "callback_sequences": [
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "index": 3,
+          "requested_map": "rc_deathmatch",
+          "result": "PASS",
+          "callback_sequences": [
+            50,
+            51,
+            52,
+            53,
+            54
+          ],
+          "deactivated": true,
+          "suite_completed": true,
+          "previous_handle_checks": [
+            "PASS",
+            "PASS"
+          ]
+        }
+      ],
+      "execution": {
+        "execution": "COMPLETE",
+        "exit_status": 0,
+        "shutdown_method": "quit",
+        "protocol_complete": true
+      },
+      "evidence": {
+        "event_log": "<original-run-root>/report/linux-rehlds-metamod-r-updated/events.jsonl",
+        "event_log_sha256": "89577ecaa809e7d2c9055c0a4c72c9d02d30e147da9f95e61c98e3f4d5ec8e72",
+        "run_id": "5521f0a6-f7cb-4988-a6d7-c44f2d937b74"
+      },
+      "reasons": {
+        "failed": [],
+        "unverified": [],
+        "incomplete": []
+      }
+    }
+  ]
+}

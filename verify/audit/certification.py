@@ -307,6 +307,19 @@ def markdown(certificate):
         if runtime.get("os") and runtime.get("architecture"):
             lines.append(f"- Platform: `{runtime['os']} / {runtime['architecture']}`")
         for name, component in runtime.get("components", {}).items():
+            if name == "engine":
+                # The executable can be identical across engines with different modules.
+                modules = component.get("modules", {})
+                if component.get("sha256") or modules:
+                    lines.append(f"- Engine: {component.get('implementation')} {component.get('version')}")
+                if component.get("sha256"):
+                    binary = component.get("binary")
+                    label = "Launcher" if modules else "Binary"
+                    filename = f" `{binary}`" if binary else ""
+                    lines.append(f"  - {label}{filename} SHA-256: `{component['sha256']}`")
+                for module, sha256 in sorted(modules.items()):
+                    lines.append(f"  - Engine module `{module}` SHA-256: `{sha256}`")
+                continue
             if component.get("sha256"):
                 lines.append(f"- {name}: {component.get('implementation')} {component.get('version')}, "
                              f"SHA-256 `{component['sha256']}`")

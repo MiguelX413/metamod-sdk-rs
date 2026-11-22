@@ -19,8 +19,9 @@ pointees have exposed fields or that the functions are safe to call.
 | Other SDK data and auxiliary interfaces, `common/`, `engine/`, `pm_shared/`, `dlls/` | Selected transitively referenced types; no blanket header coverage | Pending | Add audited public ABI types by header family. Keep game implementation types and templates outside the ABI surface. |
 
 The Linux i686 layout probes and loader harness passed for both examples.
-Win32 CI is configured to run the same cases. The harness simulates the host,
-so live-server verification and cross-fork behavior are tracked separately.
+Win32 CI is configured to run the same cases. The harness simulates the host.
+The live Ricochet certificate covers the core v2 probes on the recorded
+Linux i686 configurations. [Ricochet core v2 certificate](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
 
 The loader models nested map activation and checks that tracing stays
 unavailable until the outer activation completes. It also supplies an

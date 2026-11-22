@@ -115,6 +115,17 @@ class CertificationTests(unittest.TestCase):
         self.assertTrue(all(item["supported"] for item in row["required_probes"].values()))
         self.assertEqual(result["report"]["sha256"], hashlib.sha256(self.report.read_bytes()).hexdigest())
 
+    def test_markdown_distinguishes_engine_launcher_and_module_hashes(self):
+        certificate = self.evaluate(self.collect())
+        rendered = certification.markdown(certificate)
+        self.assertIn(f"- Launcher `engine` SHA-256: `{'a' * 64}`", rendered)
+        self.assertIn(f"- Engine module `engine-module` SHA-256: `{'e' * 64}`", rendered)
+
+        del certificate["runtimes"][0]["runtime"]["components"]["engine"]["modules"]
+        rendered = certification.markdown(certificate)
+        self.assertIn(f"- Binary `engine` SHA-256: `{'a' * 64}`", rendered)
+        self.assertNotIn("Engine module", rendered)
+
     def test_profiles_are_cumulative_and_windows_is_supported(self):
         core = self.collect("core")
         player = self.collect("player", "player", windows=True)

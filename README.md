@@ -590,3 +590,9 @@ The `metamod-audit` plugin and Python runner exercise the SDK against
 independently configured local GoldSrc servers and produce comparable
 JSONL, JSON, and Markdown reports. See the [runtime audit guide](docs/runtime-audit.md)
 for the matrix, isolated staging, and manual console protocol.
+
+The [Ricochet core v2 certificate](docs/certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
+records six certified Linux i686 configurations tested on Ubuntu 26.04. It
+lists launcher and engine module hashes separately and applies to the
+recorded binaries and map itinerary. The runtime audit guide also documents
+the optional Ubuntu wrapper for reproducing the run with a prebuilt plugin.

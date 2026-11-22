@@ -612,8 +612,8 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
             if config.get("sha256", actual_hash).lower() != actual_hash:
                 raise ValueError(f"{component} hash differs from the configured artifact")
             runtime["components"][component] = {**config, "sha256": actual_hash, "version_source": "operator configuration"}
-        # Some engines use a launcher and a separate engine module. Hash any
-        # such modules independently instead of conflating them with the exe.
+        # Different engines can share a launcher and load different modules.
+        # Record each configured module's digest separately from the executable.
         modules = {}
         for name in spec["engine"].get("modules", []):
             module = inside(installation, name)
