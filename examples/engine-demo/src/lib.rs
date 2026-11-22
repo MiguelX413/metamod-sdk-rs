@@ -19,6 +19,22 @@ struct EngineDemo {
     log_tag = "RUSTENGINE"
 )]
 impl Plugin for EngineDemo {
+    const CLIENT_CONNECT_PRE: bool = true;
+
+    fn client_connect(
+        &mut self,
+        ctx: &mut Context<'_>,
+        client: &ClientConnection,
+    ) -> ClientAdmission {
+        if client.name.as_c_str() == c"RustAdmissionReject" {
+            ctx.server().print(c"Rust admission demo: rejected\n");
+            ClientAdmission::Reject(c"Rust admission demo rejected this name.".to_owned())
+        } else {
+            ctx.server().print(c"Rust admission demo: deferred\n");
+            ClientAdmission::Defer
+        }
+    }
+
     const KEYVALUE_PRE: bool = true;
 
     fn key_value(&mut self, ctx: &mut Context<'_>, event: &KeyValueEvent) {

@@ -27,3 +27,22 @@ pub struct KeyValueEvent {
     pub key: std::ffi::CString,
     pub value: std::ffi::CString,
 }
+
+/// Owned connection inputs supplied by GoldSrc before a player session exists.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClientConnection {
+    pub name: std::ffi::CString,
+    /// Native address as supplied by the engine, including any port.
+    pub address: std::ffi::CString,
+}
+
+/// Decision made before the GameDLL handles a client connection.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum ClientAdmission {
+    /// Leave admission to the GameDLL and other Metamod plugins.
+    #[default]
+    Defer,
+    /// Supercede the GameDLL call with a rejection. The reason is truncated
+    /// to 127 native bytes and NUL-terminated in the host's output buffer.
+    Reject(std::ffi::CString),
+}

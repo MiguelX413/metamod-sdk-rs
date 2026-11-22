@@ -3,7 +3,8 @@
 pub use metamod_sys::*;
 
 use crate::{
-    Command, Context, HookResult, KeyValueEvent, PlayerId, PlayerSlot, Plugin, PostHookResult,
+    ClientAdmission, ClientConnection, Command, Context, HookResult, KeyValueEvent, PlayerId,
+    PlayerSlot, Plugin, PostHookResult,
     engine::{self, Engine},
 };
 use raw::{NEW_DLL_FUNCTIONS, edict_t};
@@ -360,6 +361,7 @@ unsafe extern "C" fn entity_api<P: Plugin>(table: *mut DllFunctions, version: *m
             version,
             ENTITY_INTERFACE,
             DllFunctions {
+                pfnClientConnect: P::CLIENT_CONNECT_PRE.then_some(client_connect::<P>),
                 pfnStartFrame: Some(start_frame::<P>),
                 pfnKeyValue: P::KEYVALUE_PRE.then_some(key_value::<P>),
                 pfnAllowLagCompensation: P::LAG_COMPENSATION_PRE.then_some(lag_pre::<P>),
@@ -551,6 +553,46 @@ fn synchronous<P: Plugin, T: Default>(
         value
     })
     .unwrap_or_default()
+}
+
+unsafe extern "C" fn client_connect<P: Plugin>(
+    _: *mut edict_t,
+    name: *const c_char,
+    address: *const c_char,
+    reject: *mut c_char,
+) -> c_int {
+    let reason = synchronous::<P, _>(|plugin, context, _| {
+        if reject.is_null() {
+            return HookResult::Ignored;
+        }
+        // SAFETY: ClientConnect supplies C strings readable through their NUL
+        // or the scan limit. Copy both before running any plugin code.
+        let (Some(name), Some(address)) = (unsafe {
+            (
+                engine::copy_string(name, engine::MAX_ENGINE_STRING),
+                engine::copy_string(address, engine::MAX_ENGINE_STRING),
+            )
+        }) else {
+            return HookResult::Ignored;
+        };
+        match plugin.client_connect(context, &ClientConnection { name, address }) {
+            ClientAdmission::Defer => HookResult::Ignored,
+            ClientAdmission::Reject(reason) => HookResult::Supercede(Some(reason)),
+        }
+    });
+    if let Some(reason) = reason {
+        let bytes = reason.as_bytes();
+        let len = bytes.len().min(127);
+        // SAFETY: The host supplies a writable 128-byte buffer through the
+        // entire hook, including native reentry. The source is Rust-owned.
+        unsafe {
+            ptr::copy_nonoverlapping(bytes.as_ptr().cast(), reject, len);
+            reject.add(len).write(0);
+        }
+        return 0;
+    }
+    // Metamod ignores this placeholder for MRES_IGNORED.
+    1
 }
 
 unsafe extern "C" fn lag_pre<P: Plugin>() -> c_int {
@@ -1026,6 +1068,85 @@ mod tests {
             }
         ));
         assert_eq!(globals.mres, MRES_IGNORED);
+    }
+
+    #[test]
+    fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
+        #[derive(Default)]
+        struct Admission;
+        impl Plugin for Admission {
+            const METADATA: Metadata = METADATA;
+            const CLIENT_CONNECT_PRE: bool = true;
+
+            fn client_connect(
+                &mut self,
+                _: &mut Context<'_>,
+                client: &ClientConnection,
+            ) -> ClientAdmission {
+                assert_eq!(client.address.as_c_str(), c"loopback");
+                match client.name.as_bytes() {
+                    b"defer" => ClientAdmission::Defer,
+                    b"panic" => panic!("admission panic"),
+                    _ => {
+                        let mut nested = [42; 128];
+                        // SAFETY: The nested call has live inputs and writable output.
+                        let result = unsafe {
+                            client_connect::<Self>(
+                                ptr::null_mut(),
+                                c"nested".as_ptr(),
+                                c"loopback".as_ptr(),
+                                nested.as_mut_ptr(),
+                            )
+                        };
+                        assert_eq!(result, 1);
+                        assert_eq!(nested, [42; 128]);
+                        ClientAdmission::Reject(std::ffi::CString::new(vec![b'x'; 200]).unwrap())
+                    }
+                }
+            }
+        }
+
+        queried();
+        let mut globals = MetaGlobals::default();
+        let mut functions = MetaFunctions::default();
+        let mut hooks = DllFunctions::default();
+        let mut version = ENTITY_INTERFACE;
+        // SAFETY: The mock keeps the hook globals and all ABI arguments live.
+        unsafe {
+            assert_eq!(
+                attach::<Admission>(PT_STARTUP, &mut functions, &raw mut globals),
+                1
+            );
+            assert_eq!(entity_api::<Admission>(&mut hooks, &mut version), 1);
+            let connect = hooks.pfnClientConnect.unwrap();
+            for (step, name) in [
+                c"defer".as_ptr(),
+                ptr::null(),
+                c"reject".as_ptr(),
+                c"panic".as_ptr(),
+                c"reject".as_ptr(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let mut output = [42; 129];
+                let result = connect(
+                    ptr::null_mut(),
+                    name,
+                    c"loopback".as_ptr(),
+                    output.as_mut_ptr(),
+                );
+                if step == 2 {
+                    assert_eq!((result, globals.mres), (0, MRES_SUPERCEDE));
+                    assert!(output[..127].iter().all(|&byte| byte == b'x' as c_char));
+                    assert_eq!(output[127..], [0, 42]);
+                } else {
+                    assert_eq!((result, globals.mres), (1, MRES_IGNORED));
+                    assert_eq!(output, [42; 129]);
+                }
+            }
+            game_shutdown::<Admission>();
+        }
     }
 
     #[test]

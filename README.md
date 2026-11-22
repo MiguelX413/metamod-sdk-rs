@@ -315,6 +315,43 @@ Stop the process normally with `quit`. These steps exercise a real host's
 loader, callbacks, and native buffers. They cannot establish shutdown
 delivery or pointer validity in every host and GameDLL combination.
 
+### Client admission
+
+Set `Plugin::CLIENT_CONNECT_PRE` to `true` and implement
+`Plugin::client_connect` to inspect the proposed client's name and address.
+These are owned native strings. The hook runs before the GameDLL processes
+the connection, so it has no established `PlayerId`.
+
+`ClientAdmission::Defer` leaves the decision to the GameDLL and other
+plugins. `ClientAdmission::Reject(c"Reason".to_owned())` returns false
+with `MRES_SUPERCEDE` and supplies a NUL-terminated reason. GoldSrc's
+128-byte output buffer limits the reason to 127 bytes, so truncation can
+split a UTF-8 character. Nested admission, missing or unterminated inputs,
+and plugin panics
+fall back to `MRES_IGNORED`. The host must supply readable inputs and keep
+the output buffer writable until the hook returns.
+
+#### Test both outcomes with the engine demo
+
+Build and install the engine demo as described above. Restart a disposable
+server with a valid map and check that `meta list` shows `Rust Engine Demo`
+running. Use a real GoldSrc client for the same game and substitute your
+server's reachable address and port below. The demo compares the supplied
+name byte for byte.
+
+1. While disconnected, run `name "RustAdmissionAllow"` and then
+   `connect 127.0.0.1:27015` in the **client console**. The server should
+   log `Rust admission demo: deferred`. With ordinary admission settings,
+   the client joins and the demo prints its player-slot greeting. The
+   GameDLL and any other plugins still decide whether to admit the client.
+2. Run `disconnect` in the client console, set the name to
+   `RustAdmissionReject`, and repeat the `connect` command. The server
+   should log `Rust admission demo: rejected`, and the client should
+   receive `Rust admission demo rejected this name.` The attempt should
+   produce no player-slot greeting.
+3. Restore your original name and reconnect to confirm the server still
+   accepts ordinary connections.
+
 ## Architecture and safety
 
 - `metamod-sys` uses libclang to parse a small C++ wrapper around the pinned

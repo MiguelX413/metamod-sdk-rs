@@ -86,6 +86,10 @@ fn main() {
     );
     println!("start_frame {}", offset_of!(DllFunctions, pfnStartFrame));
     println!(
+        "client_connect {}",
+        offset_of!(DllFunctions, pfnClientConnect)
+    );
+    println!(
         "EngineFunctions {} {}",
         size_of::<EngineFunctions>(),
         align_of::<EngineFunctions>()

@@ -22,7 +22,7 @@ fn ignore_intentionally_retained<T: ?Sized>(allocation: &T) {
 }
 
 pub use engine::{Command, ConsoleName, CvarValue, EngineError, OwnedConsoleName, PlayerInfo};
-pub use hooks::{HookResult, KeyValueEvent, PostHookResult};
+pub use hooks::{ClientAdmission, ClientConnection, HookResult, KeyValueEvent, PostHookResult};
 pub use trace::{
     EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial, Hull,
     TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
@@ -40,12 +40,12 @@ pub mod prelude {
     #[cfg(feature = "macros")]
     pub use crate::metamod_plugin;
     pub use crate::{
-        Command, ConsoleName, Context, CvarValue, EngineError, EntityError, EntityHandle,
-        EntityInfo, EntityKeyValues, EntityKind, EntitySpatial, HookResult, Hull, KeyValueEvent,
-        MetaMod, Metadata, MetamodMessage, MetamodMessageTooLong, OwnedConsoleName, PlayerId,
-        PlayerInfo, PlayerSlot, PlayerUserId, Plugin, PostHookResult, Server, TraceError,
-        TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment, console_name,
-        cvar_value, export_plugin,
+        ClientAdmission, ClientConnection, Command, ConsoleName, Context, CvarValue, EngineError,
+        EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial,
+        HookResult, Hull, KeyValueEvent, MetaMod, Metadata, MetamodMessage, MetamodMessageTooLong,
+        OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId, Plugin, PostHookResult,
+        Server, TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
+        console_name, cvar_value, export_plugin,
     };
 }
 
@@ -128,6 +128,19 @@ pub trait Plugin: Default + 'static {
 
     /// Handle a command registered through `Server::register_command`.
     fn server_command(&mut self, _context: &mut Context<'_>, _command: &Command) {}
+
+    /// Opt into the synchronous GameDLL client admission pre-hook.
+    const CLIENT_CONNECT_PRE: bool = false;
+
+    /// Decide whether to reject a connection before the GameDLL sees it.
+    /// Nested callbacks, invalid inputs, and panics defer to the host.
+    fn client_connect(
+        &mut self,
+        _context: &mut Context<'_>,
+        _client: &ClientConnection,
+    ) -> ClientAdmission {
+        ClientAdmission::Defer
+    }
 
     /// Register the pre and post lag compensation hooks independently.
     const LAG_COMPENSATION_PRE: bool = false;
