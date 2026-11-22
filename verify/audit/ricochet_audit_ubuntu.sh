@@ -865,7 +865,8 @@ fi
 if [[ -z $VALVE_VERSION ]]; then
   say "Attempting to obtain Valve's original HLDS console version token."
   PROBE_LOG="$RUNROOT/valve-version-probe.log"
-  ( cd "$INSTALLS/linux-hlds" && timeout --signal=TERM --kill-after=3s 15s \
+  ( cd "$INSTALLS/linux-hlds" && LD_LIBRARY_PATH="$PWD" \
+    timeout --signal=TERM --kill-after=3s 15s \
     ./hlds_linux -console -insecure -nomaster -game ricochet -port 27098 \
     +ip 127.0.0.1 +sv_lan 1 +map "$MAP_1" +version +quit ) \
     > "$PROBE_LOG" 2>&1 || true
@@ -967,12 +968,14 @@ cat > "$RUNROOT/start-rehlds.sh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd '$INSTALLS/linux-rehlds'
+export LD_LIBRARY_PATH="\$PWD"
 exec ./hlds_run -console -insecure -nomaster -game ricochet -port 27015 +ip 127.0.0.1 +sv_lan 1 +maxplayers 8 +map '$MAP_1'
 EOF
 cat > "$RUNROOT/start-hlds.sh" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 cd '$INSTALLS/linux-hlds'
+export LD_LIBRARY_PATH="\$PWD"
 exec ./hlds_run -console -insecure -nomaster -game ricochet -port 27016 +ip 127.0.0.1 +sv_lan 1 +maxplayers 8 +map '$MAP_1'
 EOF
 chmod +x "$RUNROOT"/start-{hlds,rehlds}.sh
