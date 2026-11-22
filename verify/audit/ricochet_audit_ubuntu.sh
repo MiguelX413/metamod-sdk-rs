@@ -223,6 +223,10 @@ set +e
 "${RUNNER[@]}"
 STATUS=$?
 set -e
+python3 - "$RUNROOT/executed-selection.json" "${ONLY_RUNTIMES[@]}" <<'PY_SELECTION'
+import json, pathlib, sys
+pathlib.Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding='utf-8')
+PY_SELECTION
 
 # Generate an operator-friendly evidence summary even if some real runtimes
 # failed. Never promote missing, skipped, or inconclusive probes to PASS.
@@ -378,13 +382,13 @@ if [[ -n $RERUN_SOURCE ]]; then
   command -v python3 >/dev/null || die "Python 3 is required for reruns"
   command -v git >/dev/null || die "Git is required for reruns"
   if [[ $RERUN_SOURCE == latest ]]; then
-    latest=""
-    for candidate in "$WORKDIR"/runs/*; do
-      [[ -f "$candidate/matrix.json" ]] || continue
-      latest="$candidate"
-    done
-    [[ -n $latest ]] || die "No saved matrix found under $WORKDIR/runs"
-    RERUN_ORIGIN="$latest"
+    RERUN_ORIGIN="$(python3 - "$REPO/verify/audit" "$WORKDIR/runs" <<'PY_LATEST'
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from runner import latest_rerun_source
+print(latest_rerun_source(pathlib.Path(sys.argv[2])))
+PY_LATEST
+)" || die "No completed saved run found under $WORKDIR/runs"
   else
     [[ $RERUN_SOURCE =~ ^[A-Za-z0-9_-]{1,128}$ ]] || die "--rerun expects 'latest' or a run ID beneath $WORKDIR/runs"
     RERUN_ORIGIN="$WORKDIR/runs/$RERUN_SOURCE"
@@ -411,12 +415,14 @@ PY_COMMIT
   # Resolve the --failed-only filter from the PREVIOUS run's report, not a
   # pass/fail heuristic applied to a partially written new report.
   SELECTED_FILE="$RUNROOT/selected-runtimes.txt"
-  python3 - "$RERUN_ORIGIN" "$RUNROOT" "$FAILED_ONLY" "$MAP_CYCLES_EXPLICIT" "$MAP_CYCLES" "$SELECTED_FILE" "${ONLY_RUNTIMES[@]}" <<'PY_RERUN'
+  python3 - "$RERUN_ORIGIN" "$RUNROOT" "$FAILED_ONLY" "$MAP_CYCLES_EXPLICIT" "$MAP_CYCLES" "$SELECTED_FILE" "$CERTIFY_PROFILE" "$REPO/verify/audit" "${ONLY_RUNTIMES[@]}" <<'PY_RERUN'
 import json, pathlib, sys
 source, dest = map(pathlib.Path, sys.argv[1:3])
 failed_only, override_cycles, cycles = map(int, sys.argv[3:6])
 selected_file = pathlib.Path(sys.argv[6])
-requested = set(sys.argv[7:])
+profile = sys.argv[7]
+sys.path.insert(0, sys.argv[8])
+requested = set(sys.argv[9:])
 matrix = json.loads((source / 'matrix.json').read_text(encoding='utf-8'))
 if matrix.get('schema_version') != 1 or not isinstance(matrix.get('runtimes'), list):
     raise SystemExit('saved runtime matrix is invalid')
@@ -430,7 +436,10 @@ if failed_only:
         raise SystemExit('--failed-only needs an existing report/report.json for the source run')
     data = json.loads(old_report.read_text(encoding='utf-8'))
     executed = {r.get('runtime', {}).get('id'): r for r in data.get('runs', [])}
-    for rid in all_ids:
+    if profile:
+        from runner import uncertified_runtime_ids
+        failed = uncertified_runtime_ids(old_report, profile) | (set(all_ids) - executed.keys())
+    for rid in all_ids if not profile else ():
         record = executed.get(rid)
         if record is None:
             failed.add(rid)
@@ -476,7 +485,7 @@ for r in matrix['runtimes']:
 selected_file.write_text('\n'.join(r['id'] for r in rows) + ('\n' if rows else ''), encoding='utf-8')
 source_meta = json.loads((source / 'sources.json').read_text(encoding='utf-8'))
 source_meta['rerun_of'] = str(source)
-source_meta['rerun_selection'] = {'failed_only':bool(failed_only), 'requested':sorted(requested),
+source_meta['rerun_selection'] = {'failed_only':bool(failed_only), 'requested':sorted(requested), 'certification_profile':profile or None,
                                   'map_cycles_override':cycles if override_cycles else None}
 (dest / 'sources.json').write_text(json.dumps(source_meta, indent=2) + '\n', encoding='utf-8')
 print(f'Selected {len(rows)}/{len(all_ids)} runtime configurations for rerun:')

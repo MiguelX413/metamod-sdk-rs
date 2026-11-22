@@ -673,6 +673,7 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
                 metadata.update(executed=True, execution="INCOMPLETE")
                 metadata["resource_samples"] = []
                 metadata["map_transitions"] = []
+                metadata["map_visits"] = []
                 try:
                     console.wait("ready", timeout, submitted=True)
                     before = console.sequence()
@@ -706,6 +707,8 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
                         before = console.sequence()
                         console.send('mm_audit_run all "audit two words"')
                         suite = console.wait("suite_complete", timeout, after=before, suite="all")
+                        metadata["map_visits"].append({"index": index, "requested_map": name,
+                                                       "after_sequence": before, "suite_sequence": suite["seq"]})
                         if index:
                             related = [event for event in console.between(change_start, suite["seq"])
                                        if event.get("test") in MAP_PROBES]
@@ -947,6 +950,34 @@ def comparison_status(category, drift):
 
 def load(path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def latest_rerun_source(runs_dir):
+    for source in sorted(runs_dir.iterdir(), reverse=True):
+        try:
+            matrix = load(source / "matrix.json")
+            metadata = load(source / "sources.json")
+            report = load(source / "report/report.json")
+            ids = {row["id"] for row in matrix["runtimes"]}
+            selected_path = source / "executed-selection.json"
+            selected = set(load(selected_path)) if selected_path.is_file() else set()
+            observed = {row["runtime"]["id"] for row in report["runs"]}
+            if (matrix["schema_version"] == SCHEMA and report["schema_version"] == SCHEMA
+                    and re.fullmatch(r"[0-9a-f]{40}", metadata["repo_commit"])
+                    and ids and len(ids) == len(matrix["runtimes"])
+                    and selected <= ids and observed == (selected or ids)
+                    and len(observed) == len(report["runs"])
+                    and all("installation" in row for row in matrix["runtimes"])):
+                return source
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    raise ValueError("no nonempty saved matrix with a complete row report")
+
+
+def uncertified_runtime_ids(report_path, profile):
+    report = json.loads(report_path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    result = certification.evaluate(report, report_path, profile, SCHEMA, parse_event)
+    return {row["runtime_id"] for row in result["runtimes"] if row["outcome"] != "CERTIFIED"}
 
 
 def matrix_template(control):

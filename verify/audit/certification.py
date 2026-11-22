@@ -21,7 +21,41 @@ PROFILES = {
     "player": PLAYER,
     "extended": PLAYER | {"entity.keyvalue_hook.v1", "lag.pre.v1", "lag.post.v1", "resources.repeat.v1"},
 }
-PROFILE_VERSIONS = {"core": 1, "player": 1, "extended": 1}
+PROFILE_VERSIONS = {"core": 2, "player": 2, "extended": 2}
+MAP_SUITE_PROBES = frozenset({"entity.discovery.v1", "entity.snapshot.v1", "trace.line.v1", "trace.hull.v1"})
+# Freeze the catalog contracts without duplicating their descriptive text.
+EXPECTATION_SHA256 = {
+    "command.arguments.v1": "1fb0a04e02e3f96631084125add940231cb91f201e79cce8f3ad4d53cac76046",
+    "commands.register.v1": "cec78d7a41334cd8c0571dcfa5605dfe5397601be6d27425ea502f8edc92f295",
+    "cvar.roundtrip.v1": "3a3f5c04502d6774befe6957373a4f6e7e8439c9f192940166bc095fab525a82",
+    "entity.discovery.v1": "84634d04eda85c9f0d7546878daf1ed79fdc3780d5d8c28375872abe995ffa60",
+    "entity.keyvalue_hook.v1": "2d7e795a9e733fc6f70794ff04189807faf15ab0929ec0f9618914b1431cf73a",
+    "entity.snapshot.v1": "9b0c70fc0154129440a83487c49ddc7d43ea3978b6558d38096e03fc8e151e78",
+    "errors.v1": "48ffe0a3bfc9c5155fe3b28f3c23dd1c6380d51b60bb4fe0c6c737324c0fd131",
+    "init.v1": "6a7fa5e4f1a75402f63319728c65fa003df7e2615b4632d21303be86449d4169",
+    "lag.post.v1": "4f2b6aa5b359ef9085926ad7c2a1e98f486a9d576b22b54777ee847f3cee9727",
+    "lag.pre.v1": "596f2b088a448bdecf07ce552baa5ab419144ae4f874f02ce336f669f3662bb0",
+    "map.activate.v1": "91045e5b70adaff3958100869b713ae6fb74bf5224dab020acf94109e58d1f08",
+    "map.deactivate.v1": "bf05f26b7954d186e781cb2f4f72bfb04b596601c0ecf8d89459ed9a543e1f5d",
+    "map.order.v1": "bf2c90a768bb92a69fdbdad24bf235480326e291ba039589693490ab3fb94c33",
+    "map.stale.v1": "c9db00d755d87795334fa7e4535746ec1dab11ceb6ddeab50139dfa890e10f42",
+    "player.disconnect.v1": "374a4ced19f331393c9fd051d57a041c1750738f00386d1cb67ebb5082c71f9f",
+    "player.identity.v1": "59f399572ce63a2c2697c1e27f9a9b6f95fcc2ffb9bb5f894b20790077e7938c",
+    "player.join.v1": "b79141a5b393abf4acb995899c8b037df1e5aa0f4f2d890a2b907f82b20e33b5",
+    "player.real_reuse.v1": "c20a3f3efc999c6f8498a9410c503ec6a1b7c757478e4a411d8c0db246baad0b",
+    "player.reuse.v1": "af224a66bb31001863870af33035d7fc641aac9cc873fe5ab14d29cd6025885c",
+    "resources.repeat.v1": "6cd85ae244ea4b1b3e111ac6844ab4aab1f855d7b729382faff41450b16bddd6",
+    "shutdown.drop.v1": "414cc1e80a7624af314c7221e8fe50bfa0c306d697e6b0e93b9c97d8117dd6db",
+    "shutdown.v1": "d1fd069d81fbfc8b7458fe5ad49535091409a18de6ae5ba7ff108b122c5d70f1",
+    "string.copy.v1": "9f48b278539c9dafddc70f6b1bfd563ef090a52c75c2bd9909202427f5fd45a9",
+    "string.limit.v1": "ed1b26afefb8ffc477113aa4c27f219e69114f3b68f8f003f2a1c82b3f1fbc90",
+    "trace.hull.v1": "2eb745e46590681237c71fca001d461aeeca3a87c5130daac8892c663cec9465",
+    "trace.line.v1": "bbc995d4dfb39f870c3ad7696a78e20cd2baca095e0540294270e18c4b3220d5",
+}
+
+
+def canonical(event):
+    return hashlib.sha256(event["expected"].encode()).hexdigest() == EXPECTATION_SHA256[event["test"]]
 COMPONENTS = ("engine", "metamod", "gamedll", "plugin")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
@@ -66,11 +100,33 @@ def check_lifecycle(run, runtime, records, incomplete):
     if len(set(itinerary)) < 2 or len(suites) != len(itinerary) or len(transitions) != len(itinerary) - 1:
         incomplete.append("Run the full itinerary with at least two distinct maps and one all-suite per visit.")
         return
+    visits = run.get("map_visits", [])
+    if len(visits) != len(itinerary):
+        incomplete.append("Missing recorded all-suite windows for map visits.")
+    for index, visit in enumerate(visits[:len(itinerary)]):
+        start = visit.get("after_sequence")
+        end = suites[index]
+        lower = suites[index - 1] if index else (ready[0]["seq"] if len(ready) == 1 else 0)
+        if (visit.get("index") != index or visit.get("requested_map") != itinerary[index]
+                or visit.get("suite_sequence") != end or type(start) is not int or not lower <= start < end):
+            incomplete.append(f"Map visit {index + 1} has an invalid suite window.")
+            continue
+        window = [e for e in records if start < e["seq"] < end]
+        if any(e.get("test") in {"map.activate.v1", "map.deactivate.v1"} for e in window):
+            incomplete.append(f"Map visit {index + 1} changed maps during its suite.")
+        passed = {e["test"] for e in window if e.get("result") == "PASS"
+                  and e.get("test") in MAP_SUITE_PROBES and canonical(e)}
+        if missing := MAP_SUITE_PROBES - passed:
+            incomplete.append(f"Map visit {index + 1} to {itinerary[index]} lacks PASS for {', '.join(sorted(missing))}.")
+        activation_floor = lower if index else 0
+        if not any(activation_floor < e["seq"] <= start and e.get("test") == "map.activate.v1"
+                   and e["result"] == "PASS" and canonical(e) for e in records):
+            incomplete.append(f"Map visit {index + 1} lacks activation before the suite command.")
     by_seq = {e["seq"]: e for e in records}
     for index, transition in enumerate(transitions, 1):
         seqs = transition.get("callback_sequences", [])
         relevant = [by_seq[seq] for seq in seqs if seq in by_seq and suites[index - 1] < seq < suites[index]]
-        passed = {record.get("test") for record in relevant if record.get("result") == "PASS"}
+        passed = {record.get("test") for record in relevant if record.get("result") == "PASS" and record.get("test") in EXPECTATION_SHA256 and canonical(record)}
         activations = [record["seq"] for record in relevant if record.get("test") == "map.activate.v1"
                        and record.get("result") == "PASS"]
         deactivations = [record["seq"] for record in relevant if record.get("test") == "map.deactivate.v1"
@@ -147,7 +203,10 @@ def evaluate_run(run, report_path, profile, protocol, parse_event):
                 failed.append(f"Plugin event records an observed failure for {test}.")
         for test in sorted(PROFILES[profile]):
             result = summaries.get(test, {})
-            passes = [e for e in events_by_test.get(test, []) if e["result"] == "PASS"]
+            observations = events_by_test.get(test, [])
+            if any(not canonical(event) for event in observations):
+                unverified.append(f"{test}: expectation differs from the versioned probe contract.")
+            passes = [e for e in observations if e["result"] == "PASS" and canonical(e)]
             matched = [e for e in passes if e["seq"] == result.get("seq")
                        and e["seq"] in result.get("event_sequences", [])
                        and e["observed"] == result.get("observed") and e["expected"] == result.get("expected")]
@@ -208,6 +267,7 @@ def evaluate_run(run, report_path, profile, protocol, parse_event):
     outcome = ("FAILED" if failed else "UNVERIFIED" if unverified else
                "INCOMPLETE" if incomplete else "CERTIFIED")
     return {"runtime_id": runtime_id, "outcome": outcome, "runtime": runtime, "required_probes": probes,
+            "map_visits": run.get("map_visits", []),
             "identity": run.get("runtime_identity", {}), "map_transitions": run.get("map_transitions", []),
             "execution": {key: run.get(key) for key in ("execution", "exit_status", "shutdown_method",
                                                         "protocol_complete")},

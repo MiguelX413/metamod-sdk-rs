@@ -1,6 +1,8 @@
 import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,7 +19,7 @@ class CertificationTests(unittest.TestCase):
         self.root = Path(work.name)
         self.report = self.root / "report.json"
 
-    def collect(self, runtime_id="live", profile="core", omit=(), failures=(), manual=(), windows=False):
+    def collect(self, runtime_id="live", profile="core", omit=(), failures=(), manual=(), windows=False, later_omit=(), altered=None):
         if windows:
             system, arch, target, stage = "windows", "x86", "i686-pc-windows-msvc", r"C:\stage"
         else:
@@ -51,21 +53,24 @@ class CertificationTests(unittest.TestCase):
         def probe(test):
             if test not in omit:
                 emit("result", test=test, result="FAIL" if test in failures else "PASS",
-                     expected=catalog[test], observed="fixture observation")
+                     expected="weaker contract" if test == altered else catalog[test], observed="fixture observation")
 
         probe("init.v1")
         probe("map.activate.v1")
         emit("ready", submitted=True)
         emit("status")
         special = runner.MAP_PROBES | {"init.v1", "shutdown.v1", "shutdown.drop.v1"}
+        suite_start = events[-1]["seq"]
         for test in sorted(certification.PROFILES[profile] - special):
             probe(test)
-        emit("suite_complete", suite="all")
+        first_suite = emit("suite_complete", suite="all")
         first = len(events) + 1
         for test in ("map.deactivate.v1", "map.stale.v1", "map.activate.v1", "map.order.v1"):
             probe(test)
         last = len(events)
-        emit("suite_complete", suite="all")
+        for test in sorted(certification.MAP_SUITE_PROBES - set(later_omit)):
+            probe(test)
+        second_suite = emit("suite_complete", suite="all")
         emit("report", complete=True)
         probe("shutdown.v1")
         probe("shutdown.drop.v1")
@@ -78,6 +83,10 @@ class CertificationTests(unittest.TestCase):
         metadata = {
             "run_id": "test-run", "executed": True, "execution": "COMPLETE", "exit_status": 0,
             "shutdown_method": "quit", "truncated_streams": [], "capture_errors": [], "crash_dumps": [],
+            "map_visits": [{"index": 0, "requested_map": "map_one", "after_sequence": suite_start,
+                            "suite_sequence": first_suite},
+                           {"index": 1, "requested_map": "map_two", "after_sequence": last,
+                            "suite_sequence": second_suite}],
             "map_transitions": [{"index": 1, "requested_map": "map_two", "result": "PASS",
                                  "deactivated": True, "suite_completed": True,
                                  "callback_sequences": list(range(first, last + 1))}],
@@ -99,7 +108,7 @@ class CertificationTests(unittest.TestCase):
         run = self.collect()
         result = self.evaluate(run)
         self.assertEqual(result["profile"], {
-            "name": "core", "version": 1, "required_probes": sorted(certification.CORE)})
+            "name": "core", "version": 2, "required_probes": sorted(certification.CORE)})
         row = result["runtimes"][0]
         self.assertEqual(row["outcome"], "CERTIFIED")
         self.assertEqual(row["runtime"]["plugin"]["artifact_manifest"]["sdk_commit"], "c" * 40)
@@ -201,6 +210,59 @@ class CertificationTests(unittest.TestCase):
         for result in ("SKIP", "INCONCLUSIVE"):
             item["result"] = result
             self.assertEqual(self.verdict(run), "INCOMPLETE")
+
+    def test_catalog_contracts_are_frozen(self):
+        catalog = runner.catalog()
+        for test, expected in certification.EXPECTATION_SHA256.items():
+            self.assertEqual(hashlib.sha256(catalog[test].encode()).hexdigest(), expected, test)
+        self.assertEqual(self.verdict(self.collect(altered="trace.line.v1")), "UNVERIFIED")
+
+    def test_earlier_success_cannot_cover_a_later_map(self):
+        run = self.collect(later_omit={"trace.line.v1"})
+        self.assertTrue(run["protocol_complete"])
+        self.assertEqual(self.verdict(run), "INCOMPLETE")
+
+    def test_ubuntu_rerun_selection_without_provisioning(self):
+        good = self.collect("good")
+        failed = self.collect("failed", failures={"trace.line.v1"})
+        gap = self.collect("gap", later_omit={"trace.line.v1"})
+        unknown = self.collect("unknown")
+        unknown["runtime"]["plugin"].pop("artifact_manifest")
+        self.evaluate(good, failed, gap, unknown)
+        checkout = Path(runner.__file__).parent
+        script = (checkout / "ricochet_audit_ubuntu.sh").read_text()
+        if os.name == "posix" and shutil.which("bash"):
+            subprocess.run(["bash", "-n", str(checkout / "ricochet_audit_ubuntu.sh")], check=True)
+        embedded = script.split("<<'PY_RERUN'\n", 1)[1].split("\nPY_RERUN", 1)[0]
+        runs = self.root / "runs"
+        source = runs / "01"
+        report_dir = source / "report"
+        report_dir.mkdir(parents=True)
+        (report_dir / "report.json").write_bytes(self.report.read_bytes())
+        rows = []
+        for rid in ("good", "failed", "gap", "unknown"):
+            shutil.copytree(self.root / rid, report_dir / rid)
+            rows.append({"id": rid, "installation": str(self.root)})
+        matrix = {"schema_version": 1, "runtimes": rows}
+        for name, saved, report in [("01", matrix, None),
+                                    ("02", {**matrix, "runtimes": []}, {"schema_version": 1, "runs": []}),
+                                    ("03", matrix, {"schema_version": 1, "runs": [good]})]:
+            folder = runs / name
+            folder.mkdir(exist_ok=True)
+            (folder / "matrix.json").write_text(json.dumps(saved))
+            (folder / "sources.json").write_text(json.dumps({"repo_commit": "a" * 40}))
+            if report is not None:
+                (folder / "report").mkdir()
+                (folder / "report/report.json").write_text(json.dumps(report))
+        self.assertEqual(runner.latest_rerun_source(runs), source)
+        for profile, expected in [("", {"failed"}), ("core", {"failed", "gap", "unknown"})]:
+            dest = self.root / ("rerun-" + profile)
+            dest.mkdir()
+            selected = dest / "selected.txt"
+            subprocess.run([sys.executable, "-c", embedded, str(source), str(dest),
+                            "1", "0", "2", str(selected), profile, str(checkout)],
+                           check=True, capture_output=True, text=True)
+            self.assertEqual(set(selected.read_text().splitlines()), expected)
 
     def test_cli_mixed_matrix_schema_and_exit_codes(self):
         good = self.collect("good")

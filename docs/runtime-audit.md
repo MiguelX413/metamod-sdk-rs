@@ -74,7 +74,7 @@ When requirements change, bump the affected profile's version. An earlier
 certificate still describes the earlier policy. Reevaluate the evidence
 under the new policy to claim the new version.
 
-| Profile | Mandatory observations in v1 |
+| Profile | Mandatory observations in v2 |
 | --- | --- |
 | `core` | Initialization, command registration and quoted arguments, CVar round trip, owned string copies and size limits, invalid input handling, entity discovery and snapshots, line and hull traces, map activation and deactivation order, rejection of stale handles, and ordered shutdown and destructor entry. |
 | `player` | Everything in core, plus join, disconnect, an owned session snapshot, and same-slot reuse by clients classified by the engine as non-fake. Use `--client-wait` and connect, disconnect, and reconnect into the same slot on the same map. |
@@ -88,6 +88,28 @@ a stale-handle rejection. Mandatory results must be plugin PASS records
 that match the report's sequence references and hash-checked event log.
 Manual assertions, imported reports, and synthetic native fixtures cannot
 supply those records. Keep native fixtures for separate FFI coverage.
+
+Profile v2 pins the UTF-8 expectation text for each mandatory probe using
+SHA-256 fingerprints of the Rust probe catalog. Event and summary agreement
+alone cannot validate a changed contract. Issue a new probe ID version when
+its expectation or what a PASS proves changes, then update the affected
+profiles and bump their versions. Keep existing fingerprints stable.
+
+Entity discovery, entity snapshots, line traces, and hull traces must pass
+inside the recorded all-suite command window on **every** map visit.
+Initial activation must precede the first suite. Later visits also require
+deactivation, activation, ordering, and stale-handle evidence for that
+transition. The other mandatory probes are runtime-wide, including
+player and gameplay observations. Older reports without suite windows cannot
+establish v2 map coverage and need a fresh run.
+
+With the Ubuntu wrapper, `--rerun latest --failed-only --certify PROFILE`
+reevaluates the saved evidence using the current policy and selects failed,
+incomplete, unverified, and unreported rows. Without `--certify`, it retains
+the ordinary audit-health filter. Automatic latest selection skips empty
+matrices and partially recorded attempts. A saved run with an explicit
+selection records the attempted rows separately. Older filtered runs without
+that record can still be selected by their explicit run ID.
 
 The profile is the applicability rule. Player and gameplay probes are
 outside core's mandatory scope. Hooks measured only by the native fixture
