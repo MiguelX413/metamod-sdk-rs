@@ -393,7 +393,10 @@ The SDK leaves PE ordinals to the linker.
   A rejected CVar attempt consumes its reservation, so retrying the same
   name cannot allocate another retained record. The native registration
   API returns no ownership or failure status. The SDK keeps submitted
-  storage resident. Classic Metamod and Metamod-R copy CVar inputs in
+  storage resident. CVar records occupy write-once slots in a bounded,
+  module-resident pool. Metamod-R uses the record address to identify the
+  registering module. The SDK never reads a record back after handing it
+  to the host. Classic Metamod and Metamod-R copy CVar inputs in
   their registration wrappers. ReHLDS can retain a record passed directly
   to the engine and replace the value pointer with engine storage. It
   unlinks external CVars without freeing the caller's record. Its game

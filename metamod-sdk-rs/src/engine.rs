@@ -10,12 +10,14 @@ use metamod_sys::{
 };
 use std::{
     borrow::Borrow,
-    cell::{Cell, RefCell},
+    cell::{Cell, RefCell, UnsafeCell},
     collections::HashSet,
     ffi::{CStr, CString, c_char},
     fmt,
+    mem::MaybeUninit,
     ops::Deref,
     ptr,
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 macro_rules! engine_callbacks {
@@ -60,6 +62,47 @@ engine_callbacks! {
 // of reservations as well as the storage per reservation.
 const MAX_CONSOLE_REGISTRATIONS: usize = 256;
 pub(crate) const MAX_ENGINE_STRING: usize = 4096;
+
+struct CvarRecords<const N: usize> {
+    next: AtomicUsize,
+    records: [UnsafeCell<MaybeUninit<cvar_t>>; N],
+}
+
+// SAFETY: Atomic reservation hands out disjoint slots once. Rust initializes
+// each slot by raw pointer before exposing it to the native host, and never
+// reads or writes it again. The host owns subsequent access under the ABI.
+unsafe impl<const N: usize> Sync for CvarRecords<N> {}
+
+impl<const N: usize> CvarRecords<N> {
+    const fn new() -> Self {
+        Self {
+            next: AtomicUsize::new(0),
+            records: [const { UnsafeCell::new(MaybeUninit::uninit()) }; N],
+        }
+    }
+
+    fn reserve(&self) -> Result<*mut cvar_t, EngineError> {
+        let mut index = self.next.load(Ordering::Relaxed);
+        loop {
+            if index >= N {
+                return Err(EngineError::RegistrationLimit);
+            }
+            match self.next.compare_exchange_weak(
+                index,
+                index + 1,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(self.records[index].get().cast()),
+                Err(current) => index = current,
+            }
+        }
+    }
+}
+
+// A non-TLS static is mapped inside the plugin module when the SDK is
+// linked into the cdylib. Metamod-R identifies the plugin by this address.
+static CVAR_RECORDS: CvarRecords<MAX_CONSOLE_REGISTRATIONS> = CvarRecords::new();
 
 pub(crate) type CommandCallback = unsafe extern "C" fn();
 
@@ -486,7 +529,11 @@ fn registration_available() -> Result<(), EngineError> {
     }
 }
 
-fn reserve_name(name: &ConsoleName, cvar: bool) -> Result<&'static CStr, EngineError> {
+fn reserve_name<T>(
+    name: &ConsoleName,
+    cvar: bool,
+    reserve: impl FnOnce() -> Result<T, EngineError>,
+) -> Result<(&'static CStr, T), EngineError> {
     CVARS.with(|cvars| {
         COMMANDS.with(|commands| {
             let mut cvars = cvars.borrow_mut();
@@ -504,6 +551,7 @@ fn reserve_name(name: &ConsoleName, cvar: bool) -> Result<&'static CStr, EngineE
             if cvars.len() + commands.len() >= MAX_CONSOLE_REGISTRATIONS {
                 return Err(EngineError::RegistrationLimit);
             }
+            let reservation = reserve()?;
             let name: &'static CStr = Box::leak(name.as_c_str().to_owned().into_boxed_c_str());
             #[cfg(all(test, metamod_lsan))]
             crate::ignore_intentionally_retained(name);
@@ -512,7 +560,7 @@ fn reserve_name(name: &ConsoleName, cvar: bool) -> Result<&'static CStr, EngineE
             } else {
                 commands.insert(name);
             }
-            Ok(name)
+            Ok((name, reservation))
         })
     })
 }
@@ -533,27 +581,25 @@ impl Server<'_, '_> {
             return Err(EngineError::AlreadyRegistered);
         }
         registration_available()?;
-        // Classic Metamod clones these inputs. ReHLDS can link the record
-        // itself into its CVar list and replace the string field with engine
-        // storage. The portable ABI does not tell us which path handled the
-        // registration. Never reclaim the inputs or read back the record.
+        // Metamod wrappers may clone these inputs. A native engine can
+        // instead retain the record and replace its string pointer.
         // Reserve before crossing FFI. Even a failed or interrupted
         // attempt may have handed the name and CVar storage to the host.
-        let name = reserve_name(name, true)?;
+        let (name, cvar) = reserve_name(name, true, || CVAR_RECORDS.reserve())?;
         let initial = Box::leak(default.as_c_str().to_owned().into_boxed_c_str());
-        let cvar = Box::new(cvar_t {
-            name: name.as_ptr(),
-            string: initial.as_ptr(),
-            ..Default::default()
-        });
         #[cfg(all(test, metamod_lsan))]
-        {
-            crate::ignore_intentionally_retained(initial);
-            crate::ignore_intentionally_retained(cvar.as_ref());
+        crate::ignore_intentionally_retained(initial);
+        // SAFETY: The slot was reserved exclusively and resides in the
+        // module for the attachment's lifetime. The strings stay allocated.
+        // No Rust references to the record exist across the native call.
+        unsafe {
+            cvar.write(cvar_t {
+                name: name.as_ptr(),
+                string: initial.as_ptr(),
+                ..Default::default()
+            });
+            register(cvar);
         }
-        let cvar = Box::into_raw(cvar);
-        // SAFETY: The structure is writable and all input storage stays resident.
-        unsafe { register(cvar) };
         if exists(engine, name)? {
             Ok(())
         } else {
@@ -608,7 +654,7 @@ impl Server<'_, '_> {
             return Err(EngineError::AlreadyRegistered);
         }
         registration_available()?;
-        let registered = reserve_name(name, false)?;
+        let (registered, ()) = reserve_name(name, false, || Ok(()))?;
         // SAFETY: The name and callback stay resident. No registry borrow
         // crosses the native call, which may invoke a command immediately.
         unsafe { register(registered.as_ptr(), Some(callback)) };
@@ -951,7 +997,36 @@ mod tests {
     }
 
     #[test]
+    fn cvar_records_are_distinct_stable_and_never_reused() {
+        static RECORDS: CvarRecords<2> = CvarRecords::new();
+        let first = RECORDS.reserve().unwrap();
+        let name = c"first".as_ptr();
+        let host_value = c"host value".as_ptr();
+        // SAFETY: This test exclusively owns both static slots and stands in
+        // for a host that retains a record and replaces its string pointer.
+        unsafe {
+            first.write(cvar_t {
+                name,
+                string: c"default".as_ptr(),
+                ..Default::default()
+            });
+            (*first).string = host_value;
+            let second = RECORDS.reserve().unwrap();
+            assert_ne!(first, second);
+            second.write(cvar_t::default());
+            assert_eq!(RECORDS.reserve(), Err(EngineError::RegistrationLimit));
+            assert_eq!((*first).name, name);
+            assert_eq!((*first).string, host_value);
+        }
+    }
+
+    #[test]
     fn irreversible_registrations_share_a_bounded_name_budget() {
+        let reserve_name = |name: &ConsoleName, cvar| super::reserve_name(name, cvar, || Ok(()));
+        let exhausted = super::reserve_name(crate::console_name!(c"Test"), true, || {
+            CvarRecords::<0>::new().reserve()
+        });
+        assert_eq!(exhausted, Err(EngineError::RegistrationLimit));
         assert!(reserve_name(crate::console_name!(c"Test"), true).is_ok());
         assert_eq!(
             reserve_name(crate::console_name!(c"test"), true),

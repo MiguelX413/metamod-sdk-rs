@@ -393,3 +393,108 @@ If the stack reaches the first-frame hook, the SDK's first engine calls
 there are a CVar lookup, registration and read-back, followed by the three
 command registrations. A frame in one of these paths would narrow the
 cause. Keep the stock and updated logs separate if their stacks differ.
+
+### Retesting Metamod-R CVar registration
+
+The pinned Metamod-R registration wrapper identifies the plugin from the
+address of the submitted `cvar_t`. A heap record does not normally belong
+to a loaded ELF module. In revision `603a257`, both Linux
+`CSysModule::find()` and `CSysModule::load()` may inspect uninitialized
+`Dl_info` fields after a failed `dladdr()` and then use an invalid filename
+with `dlopen()`. The minimal upstream correction is to return on lookup
+failure before inspecting the output, using
+`!dladdr(addr, &dlinfo) || !dlinfo.dli_fbase || !dlinfo.dli_fname`.
+Command registration uses the callback address for ownership, and the
+SDK already passes a module-resident callback.
+[Metamod-R registration](https://github.com/rehlds/Metamod-R/blob/603a2574e937171aa5e737bd5e7b4a07f74e88ee/metamod/src/reg_support.cpp#L25-L69) ·
+[Linux module lookup](https://github.com/rehlds/Metamod-R/blob/603a2574e937171aa5e737bd5e7b4a07f74e88ee/metamod/src/sys_module.cpp#L119-L144)
+
+The SDK now supplies a writable record from the plugin image. The engine
+may retain it and replace its string pointer. Each reservation consumes a
+slot for the lifetime of the attachment, including rejected registrations.
+Name and default-value storage also stay resident. The Linux loader
+fixture verifies module ownership with `dladdr()`. It does not run
+Metamod-R or establish the outcome on a live server.
+
+**Build on the development machine.** After committing the fix and from a
+clean checkout of that commit, run:
+
+```bash
+(
+  set -euo pipefail
+  test -z "$(git status --porcelain)" || { echo "Build from a clean checkout." >&2; exit 1; }
+  revision="$(git rev-parse HEAD)"
+  rustup target add i686-unknown-linux-gnu
+  cargo build --locked --release --target i686-unknown-linux-gnu -p metamod-audit
+  binary=target/i686-unknown-linux-gnu/release/libmetamod_audit.so
+  file "$binary"
+  nm -D --defined-only "$binary"
+  hash="$(sha256sum "$binary" | cut -d' ' -f1)"
+  printf '%s\n' "$hash"
+  python3 - "$revision" "$hash" <<'PY' > target/i686-unknown-linux-gnu/release/audit-build.json
+import json, sys
+revision, digest = sys.argv[1:]
+print(json.dumps({"schema_version": 1, "sha256": digest, "audit_plugin_commit": revision,
+                  "sdk_commit": revision, "working_tree_dirty": False}, indent=2))
+PY
+)
+```
+
+Check that `file` reports a 32-bit i386 ELF shared object and `nm` lists
+`GiveFnptrsToDll`, `Meta_Query`, `Meta_Attach` and `Meta_Detach`. Both
+revision fields are equal here because this workspace build compiles the
+SDK and plugin from the same checkout.
+
+**Transfer and run on Ubuntu.** Transfer the new `libmetamod_audit.so` and
+`audit-build.json` together through your normal transfer channel. Use a
+clean runner checkout and a previously provisioned six-row matrix to avoid
+downloading game assets again. Adjust the first three paths below.
+
+```bash
+SDK="$HOME/metamod-sdk-rs-audit-fix"
+OLD="$HOME/ricochet-audit-lab/runs/ACTUAL_RUN_ID"
+ARTIFACTS="$HOME/incoming/metamod-audit"
+NEW="$(mktemp -d "$HOME/ricochet-cvar-followup.XXXXXX")"
+
+python3 - "$OLD/matrix.json" "$ARTIFACTS" "$NEW/matrix.json" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+old, artifacts, output = map(Path, sys.argv[1:])
+plugin = (artifacts / "libmetamod_audit.so").resolve(strict=True)
+manifest = json.loads((artifacts / "audit-build.json").read_text())
+digest = hashlib.sha256(plugin.read_bytes()).hexdigest()
+if digest != manifest["sha256"]:
+    raise SystemExit("Transferred audit plugin does not match the build manifest")
+matrix = json.loads(old.read_text())
+for row in matrix["runtimes"]:
+    row["installation"] = str((old.parent / row["installation"]).resolve(strict=True))
+    row.update(plugin=str(plugin), plugin_sha256=digest, plugin_provenance=manifest)
+    for field in ("audit_plugin_commit", "sdk_commit"):
+        row.pop(field, None)
+output.write_text(json.dumps(matrix, indent=2) + "\n")
+print(digest)
+PY
+
+file "$ARTIFACTS/libmetamod_audit.so"
+sha256sum "$ARTIFACTS/libmetamod_audit.so"
+# Confirm that the checksum matches the development build's printed SHA-256.
+
+run_core() {
+  local output="$1"
+  shift
+  python3 "$SDK/verify/audit/runner.py" run "$NEW/matrix.json" "$NEW/$output" --platform linux "$@" &&
+    python3 "$SDK/verify/audit/runner.py" certify "$NEW/$output/report.json" core "$NEW/$output-cert"
+}
+run_core stock --only linux-rehlds-metamod-r-stock
+# After stock certifies:
+run_core updated --only linux-rehlds-metamod-r-updated
+# After the focused runs, run the whole saved matrix:
+run_core full
+```
+
+Each invocation uses fresh isolated staging and keeps earlier evidence.
+The runner checkout may differ from the artifact build checkout. Do not
+use bootstrap `--rerun` to substitute the new binary into an old run.
+Ubuntu only needs the prebuilt binaries, Python and runtime dependencies
+for these commands. If the stock row still faults before readiness,
+collect the GDB evidence described above for the new artifact.

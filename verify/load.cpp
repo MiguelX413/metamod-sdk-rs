@@ -8,6 +8,10 @@
 #include <meta_api.h>
 #include <h_export.h>
 
+#if defined(__linux__)
+#include <dlfcn.h>
+#endif
+
 #ifdef METAMOD_LOADER_LSAN
 #include <sanitizer/lsan_interface.h>
 #endif
@@ -54,13 +58,24 @@ static cvar_t *find_cvar(const char *name) {
     return registered_cvar && std::strcmp(name, registered_cvar->name) == 0 ? registered_cvar : nullptr;
 }
 
+#if defined(__linux__)
+static void assert_plugin_address(const void *address) {
+    Dl_info plugin{}, owner{};
+    assert(dladdr(info, &plugin) != 0);
+    assert(dladdr(address, &owner) != 0);
+    assert(owner.dli_fbase == plugin.dli_fbase);
+}
+#endif
+
 static void register_cvar(cvar_t *cvar) {
     assert(!registered_cvar && std::strcmp(cvar->name, runtime_audit ? "mm_audit_value" : "rust_hello_message") == 0);
     assert(cvar->flags == 0 && cvar->next == nullptr);
+#if defined(__linux__)
+    assert_plugin_address(cvar);
+#endif
 #ifdef METAMOD_LOADER_LSAN
     // The SDK retains these allocations across shutdown. Mark the initial
     // string before the engine replaces its pointer in the record.
-    __lsan_ignore_object(cvar);
     __lsan_ignore_object(cvar->name);
     __lsan_ignore_object(cvar->string);
 #endif
@@ -81,6 +96,9 @@ static void set_cvar(const char *name, const char *value) {
 
 static void register_command(const char *name, void (*callback)()) {
     assert(callback);
+#if defined(__linux__)
+    assert_plugin_address(reinterpret_cast<const void *>(callback));
+#endif
 #ifdef METAMOD_LOADER_LSAN
     __lsan_ignore_object(name);
 #endif
@@ -365,6 +383,8 @@ static void exercise_audit() {
     // Keep the combined fixture transcript line-aligned under redirection.
     std::fflush(stdout);
     new_hooks.pfnGameShutdown();
+    assert(registered_cvar == find_cvar("mm_audit_value"));
+    assert(registered_cvar->string == cvar_value);
     const auto before = audit_logs;
     audit_report();
     assert(audit_logs == before);
