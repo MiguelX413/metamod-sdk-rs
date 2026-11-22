@@ -3,7 +3,6 @@
 
 import argparse
 from contextlib import nullcontext
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,8 +17,10 @@ import threading
 import time
 import uuid
 
+from artifacts import digest
 from evidence import CONSOLE_EVIDENCE, CRASH, NATIVE_PREFIX, SANITIZER, identity, linux_mappings, windows_mappings
 import certification
+import certification_bundle
 import memory_safety
 
 SCHEMA = 1
@@ -57,14 +58,6 @@ PROBE_ID = re.compile(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.v[1-9][0-9]*")
 
 def dump(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-
-
-def digest(path):
-    result = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            result.update(block)
-    return result.hexdigest()
 
 
 def catalog():
@@ -627,6 +620,8 @@ def run_one(spec, config_dir, output, run_id, allow_build, client_wait, prepare_
             module = inside(installation, name)
             check_binary(module, system, library=True)
             modules[name] = digest(module)
+        if "module_sha256" in spec["engine"] and spec["engine"]["module_sha256"] != modules:
+            raise ValueError("engine module hashes differ from the configured artifacts")
         runtime["components"]["engine"]["modules"] = modules
         lib_dirs = spec["engine"].get("library_dirs", [])
         if not all(inside(installation, path).is_dir() for path in lib_dirs):
@@ -1116,9 +1111,27 @@ def main():
     certify.add_argument("report", type=Path)
     certify.add_argument("profile", choices=certification.PROFILES)
     certify.add_argument("output", type=Path, help="new directory for certificate.json and certificate.md")
+    export = sub.add_parser("export-certification", help="export a portable bundle from certified live evidence")
+    export.add_argument("report", type=Path)
+    export.add_argument("matrix", type=Path)
+    export.add_argument("profile", choices=certification.PROFILES)
+    export.add_argument("output", type=Path, help="new bundle directory")
+    verify = sub.add_parser("verify-certification", help="check a bundle and reproduce its verdict offline")
+    verify.add_argument("bundle", type=Path)
     args = parser.parse_args()
     run_id = str(uuid.uuid4())
     try:
+        if args.command in {"export-certification", "verify-certification"}:
+            def strict_load(path):
+                return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+
+            if args.command == "export-certification":
+                certification_bundle.export(args.report, args.matrix, args.output, args.profile,
+                                            SCHEMA, parse_event, strict_load)
+            else:
+                result = certification_bundle.verify(args.bundle, SCHEMA, parse_event, strict_load)
+                print(f"Reproduced {len(result['runtimes'])} certified runtime verdicts.")
+            return 0
         if args.command == "template":
             print(json.dumps(matrix_template(args.hldm), indent=2))
             return 0

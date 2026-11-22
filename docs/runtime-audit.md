@@ -24,16 +24,16 @@ You need:
 
 ## Configure and run
 
-The Ubuntu bootstrap checks for dangling links before copying the Steam
-installation. It materializes valid links in both server snapshots. The
-only automatic fallback is for a dangling root-level `libSDL2.so` alias
-that targets the SDL2 runtime name `libSDL2-2.0.so.0` beside the link or
-in Ubuntu's i386 library directory. The bootstrap validates the system
-replacement's Linux i686 ELF header and SDL2 SONAME, then copies it into
-each snapshot. It leaves the Steam tree intact, including on
-`--skip-steam` provisioning. For other broken links, restore the target
-named in the error. Successful staging does not verify that the engine
-can load the library or resolve every symbol it needs.
+The Ubuntu bootstrap materializes valid internal file and directory links
+in both server snapshots. It rejects escaping paths, cycles, broken links,
+and special files before copying. Only the root-level `libSDL2.so` alias
+can use the Ubuntu i386 SDL2 library. The exception applies to a missing
+`libSDL2-2.0.so.0` beside the alias or an exact link to that library in
+`/usr/lib/i386-linux-gnu`. The bootstrap checks the replacement's i686 ELF
+header and SDL2 SONAME. The Steam tree remains intact, including on
+`--skip-steam` provisioning. Restore any other rejected dependency in the
+source tree before retrying. Staging checks file layout and the fallback
+ABI, while library loading is checked during the actual server run.
 
 From the repository root:
 
@@ -157,6 +157,17 @@ matrices and partially recorded attempts. A saved run with an explicit
 selection records the attempted rows separately. Older filtered runs without
 that record can still be selected by their explicit run ID.
 
+Ubuntu provisioning refuses tracked edits, staged changes and nonignored
+untracked files before switching runner revisions. It checks the fetched
+commit and validates all initialized submodules against their Git links.
+Reruns require a clean, complete checkout and keep the saved runner pin
+unless an explicit `--rerun-runner-checkout` selects another checkout.
+They compare saved plugin and component hashes against the binaries on
+disk. New matrices pin launcher, engine module, Metamod and GameDLL hashes.
+Older matrices can use the previous capture's hashes where available.
+The runner revision and the independently declared prebuilt-plugin and
+SDK revisions are recorded separately.
+
 The bootstrap also supports opt-in `--memcheck` on saved reruns. Its
 memory-safety reports are separate from compatibility certification.
 For saved matrices pinned before Memcheck support, use an explicit clean
@@ -217,6 +228,43 @@ report. A certificate records the identities, hashes, profile, and evidence
 for the exact binaries and tested itinerary. It establishes neither
 compatibility across other configurations nor memory safety or compliance
 with all native host contracts.
+
+### Publish replayable certification evidence
+
+From a checkout that supports the recorded certification profile, export
+the live report with its per-runtime `events.jsonl` files still beside it
+and the matrix used for the run.
+
+```sh
+python3 verify/audit/runner.py export-certification \
+  /path/to/run/report/report.json /path/to/run/matrix.json core ./bundle
+python3 verify/audit/runner.py verify-certification ./bundle
+```
+
+Export requires every row in the report to certify. It copies the original
+event bytes, includes only the matrix rows covered by the report, and
+projects the report onto the metadata used to replay policy. It substitutes
+virtual staging paths in identity evidence and rechecks certification
+after that substitution. The bundle includes a SHA-256 manifest, both
+certificate formats, and the original source report hash for reference.
+Its matrix records inputs and itinerary for review. It omits local launch
+paths and is intended for offline verification.
+
+Review the bundle before publishing. Raw server logs, binaries, launch
+environments, and configuration files are excluded. The exporter rejects
+unrecognized event fields and recognizable private data. Free-form event
+text still requires human review. If it contains sensitive information,
+withhold the bundle and recollect with public-safe inputs. Event bytes
+must stay identical to those collected by the runner.
+
+The verifier checks the inventory and hashes, revalidates the event
+protocol, reruns the installed profile policy, and compares both resulting
+certificates. Record the verifier checkout alongside the published bundle
+so readers can use that policy version. A trusted publisher or separately
+authenticated manifest is still needed to establish authenticity. Offline
+replay cannot establish that captured process mappings or console
+observations came from a real server. The archived November 22 certificate
+is a summary. Its original event bundle is not included in the repository.
 
 ## Console and manual protocol
 

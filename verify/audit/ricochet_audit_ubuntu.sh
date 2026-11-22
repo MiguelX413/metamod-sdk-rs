@@ -6,6 +6,8 @@ umask 077
 IFS=$'\n\t'
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=verify/audit/checkout.sh
+source "$SCRIPT_DIR/checkout.sh"
 WORKDIR="${HOME}/ricochet-audit-lab"
 REPO_REF="master"
 AUDIT_PLUGIN=""
@@ -29,7 +31,6 @@ WITH_NATIVE=0
 WITH_RUST_TESTS=0
 SKIP_APT=0
 SKIP_STEAM=0
-KEEP_OLD=1
 RERUN_SOURCE=""
 RERUN_RUNNER_CHECKOUT=""
 FAILED_ONLY=0
@@ -149,7 +150,10 @@ done
 source /etc/os-release
 [[ ${ID:-} == ubuntu ]] || { echo "This installer currently supports Ubuntu only (found ${ID:-unknown})." >&2; exit 2; }
 [[ $MAP_CYCLES =~ ^[1-8]$ ]] || { echo "--map-cycles must be 1..8" >&2; exit 2; }
-[[ $CLIENT_WAIT =~ ^[0-9]+$ ]] && ((CLIENT_WAIT <= 600)) || { echo "--client-wait must be 0..600" >&2; exit 2; }
+if ! [[ $CLIENT_WAIT =~ ^[0-9]+$ ]] || ((CLIENT_WAIT > 600)); then
+  echo "--client-wait must be 0..600" >&2
+  exit 2
+fi
 [[ $REPO_REF =~ ^[A-Za-z0-9._/-]{1,128}$ ]] || { echo "Invalid --repo-ref" >&2; exit 2; }
 (( ! FAILED_ONLY )) || [[ -n $RERUN_SOURCE ]] || { echo "--failed-only requires --rerun" >&2; exit 2; }
 if [[ -z $RERUN_SOURCE ]]; then
@@ -187,9 +191,10 @@ if (( WITH_NATIVE )); then
   # Do not manufacture an exit_status of 0 or accept partial native evidence.
   [[ -f "$REPO/verify/audit/collect-native.sh" ]] || \
     die "Selected metamod-sdk-rs revision lacks verify/audit/collect-native.sh; use commit 8f2673f or newer."
-  grep -q -- '--native-fixture' "$REPO/verify/audit/collect-native.sh" && \
-    grep -q -- '--require-native-suite' "$REPO/verify/audit/collect-native.sh" || \
+  if ! grep -q -- '--native-fixture' "$REPO/verify/audit/collect-native.sh" ||
+     ! grep -q -- '--require-native-suite' "$REPO/verify/audit/collect-native.sh"; then
     die "Selected metamod-sdk-rs revision does not enforce the complete native suite; use commit 8f2673f or newer."
+  fi
   grep -q -- '--require-native-suite' "$REPO/verify/audit/runner.py" || \
     die "Selected metamod-sdk-rs revision lacks strict native-suite import support."
   ( cd "$REPO" && bash verify/audit/collect-native.sh \
@@ -412,10 +417,6 @@ if [[ -n $RERUN_SOURCE ]]; then
   REPO="${RERUN_RUNNER_CHECKOUT:-$WORKDIR/metamod-sdk-rs}"
   REPO="$(cd -- "$REPO" && pwd -P)" || die "Missing source checkout"
   [[ -e $REPO/.git ]] || die "Missing source checkout: $REPO"
-  if [[ -n $RERUN_RUNNER_CHECKOUT ]]; then
-    checkout_status="$(git -C "$REPO" status --porcelain)" || die "Cannot inspect checkout: $REPO"
-    [[ -z $checkout_status ]] || die "Explicit runner checkout must be clean: $REPO"
-  fi
   if [[ $RERUN_SOURCE == latest ]]; then
     RERUN_ORIGIN="$(python3 - "$REPO/verify/audit" "$WORKDIR/runs" <<'PY_LATEST'
 import pathlib, sys
@@ -439,6 +440,7 @@ PY_COMMIT
   [[ $AUDIT_COMMIT =~ ^[0-9a-f]{40}$ ]] || die "Saved source metadata lacks a valid pinned Git commit"
   ACTUAL_COMMIT="$(git -C "$REPO" rev-parse HEAD)"
   [[ -n $RERUN_RUNNER_CHECKOUT || $AUDIT_COMMIT == "$ACTUAL_COMMIT" ]] || die "SDK checkout moved: expected $AUDIT_COMMIT, got $ACTUAL_COMMIT. Restore the pinned commit or use --rerun-runner-checkout PATH."
+  check_checkout "$REPO" "$ACTUAL_COMMIT" || die "Invalid runner checkout"
   [[ -f "$REPO/verify/audit/runner.py" ]] || die "Missing audit runner in $REPO"
   check_memcheck_support
   AUDIT_COMMIT="$ACTUAL_COMMIT"
@@ -452,7 +454,7 @@ PY_COMMIT
   # Resolve the --failed-only filter from the PREVIOUS run's report, not a
   # pass/fail heuristic applied to a partially written new report.
   SELECTED_FILE="$RUNROOT/selected-runtimes.txt"
-  python3 - "$RERUN_ORIGIN" "$RUNROOT" "$FAILED_ONLY" "$MAP_CYCLES_EXPLICIT" "$MAP_CYCLES" "$SELECTED_FILE" "$CERTIFY_PROFILE" "$REPO/verify/audit" "$AUDIT_COMMIT" "${ONLY_RUNTIMES[@]}" <<'PY_RERUN'
+  python3 - "$RERUN_ORIGIN" "$RUNROOT" "$FAILED_ONLY" "$MAP_CYCLES_EXPLICIT" "$MAP_CYCLES" "$SELECTED_FILE" "$CERTIFY_PROFILE" "$REPO/verify/audit" "$AUDIT_COMMIT" "$SCRIPT_DIR" "${ONLY_RUNTIMES[@]}" <<'PY_RERUN'
 import json, pathlib, sys
 source, dest = map(pathlib.Path, sys.argv[1:3])
 failed_only, override_cycles, cycles = map(int, sys.argv[3:6])
@@ -460,7 +462,9 @@ selected_file = pathlib.Path(sys.argv[6])
 profile = sys.argv[7]
 sys.path.insert(0, sys.argv[8])
 runner_commit = sys.argv[9]
-requested = set(sys.argv[10:])
+sys.path.append(sys.argv[10])
+from artifacts import digest, pin_runtime
+requested = set(sys.argv[11:])
 matrix = json.loads((source / 'matrix.json').read_text(encoding='utf-8'))
 if matrix.get('schema_version') != 1 or not isinstance(matrix.get('runtimes'), list):
     raise SystemExit('saved runtime matrix is invalid')
@@ -494,6 +498,11 @@ if failed_only:
                             for x in record.get('tests', [])))
         if unhealthy:
             failed.add(rid)
+previous_report = source / 'report' / 'report.json'
+previous = {}
+if previous_report.is_file():
+    previous = {run['runtime']['id']: run['runtime']
+                for run in json.loads(previous_report.read_text(encoding='utf-8'))['runs']}
 rows = []
 for r in matrix['runtimes']:
     if requested and r['id'] not in requested:
@@ -508,6 +517,9 @@ for r in matrix['runtimes']:
     if not installation.is_dir():
         raise SystemExit(f'saved installation unavailable: {installation}')
     new['installation'] = str(installation)
+    captured = previous.get(r['id'], {})
+    if all(name in new for name in ('engine', 'metamod', 'gamedll')):
+        pin_runtime(new, installation, captured.get('components', {}))
     if 'plugin' in new:
         plugin = pathlib.Path(new['plugin'])
         if not plugin.is_absolute():
@@ -515,6 +527,16 @@ for r in matrix['runtimes']:
         plugin = plugin.resolve(strict=True)
         if not plugin.is_file():
             raise SystemExit(f'audit plugin unavailable: {plugin}')
+        captured_hash = captured.get('plugin', {}).get('sha256')
+        captured_manifest = captured.get('plugin', {}).get('artifact_manifest')
+        if captured_manifest is not None and new.get('plugin_provenance') != captured_manifest:
+            raise SystemExit('saved audit plugin build manifest differs from the capture')
+        expected_hash = new.get('plugin_sha256', captured_hash)
+        if captured_hash is not None and captured_hash != expected_hash:
+            raise SystemExit('saved audit plugin digest differs from the capture')
+        if expected_hash is None or digest(plugin) != expected_hash:
+            raise SystemExit(f'saved audit plugin digest is unavailable or changed: {plugin}')
+        new['plugin_sha256'] = expected_hash
         new['plugin'] = str(plugin)
     if override_cycles:
         new['map_cycles'] = cycles
@@ -558,12 +580,12 @@ if (( ! SKIP_APT )); then
   sudo dpkg --add-architecture i386
   sudo apt-get update
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates curl git python3 python3-pip unzip zip tar gzip rsync file \
+    ca-certificates curl git python3 python3-pip unzip zip tar gzip file \
     "${build_packages[@]}" \
     lib32gcc-s1 lib32stdc++6 libc6-i386 libstdc++6:i386 libgcc-s1:i386 \
     zlib1g:i386 libsdl2-2.0-0:i386 gnupg coreutils findutils binutils procps
 fi
-for cmd in curl git python3 unzip rsync file timeout sha256sum; do
+for cmd in curl git python3 unzip file timeout sha256sum; do
   command -v "$cmd" >/dev/null || die "Missing prerequisite: $cmd (remove --skip-apt or install it)."
 done
 
@@ -680,15 +702,11 @@ done
 say "Stock GameDLL: ricochet/$STOCK_REL; maps: $MAP_1, $MAP_2"
 
 say "Fetching the metamod-sdk-rs source and pinned upstream submodules."
-if [[ ! -d "$REPO/.git" ]]; then
-  git clone --recurse-submodules https://github.com/MiguelX413/metamod-sdk-rs.git "$REPO"
+if [[ ! -e "$REPO/.git" ]]; then
+  git clone --no-checkout https://github.com/MiguelX413/metamod-sdk-rs.git "$REPO"
+  git -C "$REPO" checkout --detach HEAD
 fi
-(
-  cd "$REPO"
-  git fetch origin "$REPO_REF" --depth=1
-  git checkout --detach FETCH_HEAD
-  git submodule update --init --recursive
-)
+select_checkout "$REPO" "$REPO_REF" || die "Cannot select a clean pinned runner checkout"
 AUDIT_COMMIT="$(git -C "$REPO" rev-parse HEAD)"
 
 if (( WITH_NATIVE || WITH_RUST_TESTS )); then
@@ -703,7 +721,10 @@ if (( WITH_NATIVE || WITH_RUST_TESTS )); then
   rustup target add i686-unknown-linux-gnu
   if [[ -z ${LIBCLANG_PATH:-} ]]; then
     LIBCLANG_FILE="$(find /usr/lib -name 'libclang.so' -print -quit 2>/dev/null || true)"
-    if [[ -n $LIBCLANG_FILE ]]; then export LIBCLANG_PATH="$(dirname "$LIBCLANG_FILE")"; fi
+    if [[ -n $LIBCLANG_FILE ]]; then
+      LIBCLANG_PATH="$(dirname "$LIBCLANG_FILE")"
+      export LIBCLANG_PATH
+    fi
   fi
 fi
 run_workspace_tests
@@ -798,52 +819,7 @@ say "Creating standalone, separate HLDS and ReHLDS snapshots."
 # -L materializes any SteamCMD-created symlinks: the repo runner explicitly
 # refuses symlink/reparse-point source trees for safe staging.
 stage_installation() {
-  local source="$1" destination="$2" sdl="$3" repair dynamic
-  local -a excludes=()
-  repair="$(python3 - "$source" <<'PY_LINKS'
-import os
-from pathlib import Path
-import subprocess
-import sys
-
-root = Path(sys.argv[1])
-try:
-    # Match rsync -L, including links inside directories reached through links.
-    links = subprocess.check_output(["find", "-L", str(root), "-type", "l", "-print0"])
-    repair = None
-    for item in links.split(b'\0'):
-        if not item:
-            continue
-        link = Path(os.fsdecode(item))
-        target = os.readlink(link)
-        # Allow only the root-level SDL2 alias for the known SDL2 ABI name.
-        if link == root / "libSDL2.so" and target in {
-            "libSDL2-2.0.so.0", "./libSDL2-2.0.so.0",
-            "/usr/lib/i386-linux-gnu/libSDL2-2.0.so.0",
-        }:
-            repair = f"{link} -> {target}"
-        else:
-            sys.exit(f"Unresolved symlink: {link} -> {target}. Restore its target in the Steam installation before staging.")
-    if repair:
-        print(repair)
-except (OSError, subprocess.CalledProcessError) as error:
-    sys.exit(f"Cannot inspect Steam installation links under {root}: {error}")
-PY_LINKS
-)" || return 1
-  if [[ -n $repair ]]; then
-    [[ -f $sdl ]] || die "$repair. Install libsdl2-2.0-0:i386 or restore the original link target."
-    validate_elf32 "$sdl" || die "$repair. Invalid i686 replacement: $sdl"
-    command -v readelf >/dev/null || die "$repair. Install binutils to verify the replacement SDL2 ABI."
-    dynamic="$(LC_ALL=C readelf -d -- "$sdl")" &&
-      grep -Eq '\(SONAME\).*\[libSDL2-2\.0\.so\.0\][[:space:]]*$' <<< "$dynamic" ||
-      die "$repair. Replacement lacks the SDL2 ABI SONAME: $sdl"
-    excludes=(--exclude='/libSDL2.so')
-    printf 'Staging SDL2 replacement for %s using %s\n' "$repair" "$sdl" >&2
-  fi
-  rsync -aL "${excludes[@]}" -- "$source/" "$destination/" || return 1
-  if [[ -n $repair ]]; then
-    install -m 755 -- "$sdl" "$destination/libSDL2.so"
-  fi
+  python3 "$SCRIPT_DIR/staging.py" "$1" "$2" "$3"
 }
 stage_installation "$BASE" "$INSTALLS/linux-hlds" /usr/lib/i386-linux-gnu/libSDL2-2.0.so.0
 stage_installation "$BASE" "$INSTALLS/linux-rehlds" /usr/lib/i386-linux-gnu/libSDL2-2.0.so.0
@@ -926,7 +902,7 @@ if [[ -z $VALVE_VERSION ]]; then
 fi
 
 say "Generating a matrix from real installed paths, versions, and available assets."
-export RICO_RUNROOT="$RUNROOT" RICO_PLUGIN="$PLUGIN" RICO_PLUGIN_SHA="$PLUGIN_SHA" \
+export RICO_SCRIPT_DIR="$SCRIPT_DIR" RICO_RUNROOT="$RUNROOT" RICO_PLUGIN="$PLUGIN" RICO_PLUGIN_SHA="$PLUGIN_SHA" \
   RICO_PLUGIN_PROVENANCE="$PLUGIN_PROVENANCE" \
   RICO_AUDIT_COMMIT="$AUDIT_COMMIT" RICO_STOCK_REL="$STOCK_REL" \
   RICO_MAP_1="$MAP_1" RICO_MAP_2="$MAP_2" \
@@ -936,9 +912,11 @@ export RICO_RUNROOT="$RUNROOT" RICO_PLUGIN="$PLUGIN" RICO_PLUGIN_SHA="$PLUGIN_SH
   RICO_MM_R_CONSOLE="$METAMODR_CONSOLE_VERSION" RICO_UPDATED="$UPDATED_PRESENT" \
   RICO_EXPERIMENTAL="$EXPERIMENTAL" RICO_CYCLES="$MAP_CYCLES"
 python3 - <<'PY'
-import hashlib,json,os,pathlib
+import hashlib,json,os,pathlib,sys
 E=os.environ
 root=pathlib.Path(E['RICO_RUNROOT'])
+sys.path.insert(0, E['RICO_SCRIPT_DIR'])
+from artifacts import pin_runtime
 stock=E['RICO_STOCK_REL']
 manifest_path=E['RICO_PLUGIN_PROVENANCE']
 provenance=json.loads(pathlib.Path(manifest_path).read_text(encoding='utf-8')) if manifest_path else None
@@ -969,6 +947,7 @@ for engine,manager in [('hlds','classic'),('rehlds','classic'),('rehlds','metamo
             'maps':[E['RICO_MAP_1'],E['RICO_MAP_2']],
             'map_cycles':int(E['RICO_CYCLES']), 'timeout_seconds':60,
             'port':27045,'experimental':engine=='hlds' and manager=='metamod-r'})
+        pin_runtime(rows[-1], root/'installs'/f'linux-{engine}')
         if provenance is not None:
             rows[-1]['plugin_provenance']=provenance
 (root/'matrix.json').write_text(json.dumps({'schema_version':1,'runtimes':rows},indent=2)+'\n')

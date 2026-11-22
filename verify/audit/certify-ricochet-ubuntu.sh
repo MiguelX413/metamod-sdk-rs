@@ -344,7 +344,9 @@ if [[ ! -d "$REPO/.git" ]]; then
 else
   info 'Updating existing local metamod-sdk-rs checkout'
 fi
-[[ -z $(git -C "$REPO" status --porcelain) ]] || fail \
+checkout_status="$(git -C "$REPO" status --porcelain --untracked-files=all --ignore-submodules=none)" ||
+  fail "Cannot inspect runner checkout: $REPO"
+[[ -z $checkout_status ]] || fail \
   "Runner checkout is dirty: $REPO. Clean it or clone a fresh checkout."
 # The wrapper must pick up upstream bootstrap fixes after an earlier failed
 # installation. A clean checkout is updated without rewriting user changes.
@@ -355,9 +357,15 @@ case "$origin_url" in
 esac
 info "Fetching runner ref '$REPO_REF' and pinning its exact commit"
 git -C "$REPO" fetch --depth=1 origin "$REPO_REF" || fail "Unable to fetch runner ref: $REPO_REF"
-git -C "$REPO" checkout --detach FETCH_HEAD || fail 'Could not switch the clean audit wrapper checkout to the fetched revision.'
-[[ -z $(git -C "$REPO" status --porcelain) ]] || fail 'Updated runner checkout has uncommitted changes.'
-RUNNER_COMMIT=$(git -C "$REPO" rev-parse HEAD)
+RUNNER_COMMIT="$(git -C "$REPO" rev-parse --verify 'FETCH_HEAD^{commit}')" || fail 'Fetched ref is not a commit.'
+if [[ $REPO_REF =~ ^[0-9a-fA-F]{40}$ && ${REPO_REF,,} != "$RUNNER_COMMIT" ]]; then
+  fail 'Fetched ref does not match the requested commit.'
+fi
+git -C "$REPO" checkout --detach "$RUNNER_COMMIT" || fail 'Could not switch the clean audit wrapper checkout to the fetched revision.'
+[[ $(git -C "$REPO" rev-parse --verify HEAD) == "$RUNNER_COMMIT" ]] || fail 'Updated checkout revision differs from the fetched commit.'
+checkout_status="$(git -C "$REPO" status --porcelain --untracked-files=all --ignore-submodules=none)" ||
+  fail "Cannot inspect updated runner checkout: $REPO"
+[[ -z $checkout_status ]] || fail 'Updated runner checkout has uncommitted changes.'
 SCRIPT="$REPO/verify/audit/ricochet_audit_ubuntu.sh"
 VALIDATOR="$REPO/verify/audit/elf.py"
 [[ -f $SCRIPT && -f $VALIDATOR ]] || fail \

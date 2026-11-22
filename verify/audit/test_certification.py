@@ -271,7 +271,7 @@ class CertificationTests(unittest.TestCase):
             dest.mkdir()
             selected = dest / "selected.txt"
             subprocess.run([sys.executable, "-c", embedded, str(source), str(dest),
-                            "1", "0", "2", str(selected), profile, str(checkout), "b" * 40],
+                            "1", "0", "2", str(selected), profile, str(checkout), "b" * 40, str(checkout)],
                            check=True, capture_output=True, text=True)
             self.assertEqual(set(selected.read_text().splitlines()), expected)
             metadata = json.loads((dest / "sources.json").read_text())
@@ -301,3 +301,75 @@ class CertificationTests(unittest.TestCase):
         self.report.write_text('{"schema_version": 99, "runs": []}')
         self.assertEqual(invoke("invalid").returncode, 2)
         self.assertFalse((self.root / "invalid").exists())
+
+    def test_portable_bundle_revalidates_relocated_linux_and_windows_evidence(self):
+        linux = self.collect("linux")
+        windows = self.collect("windows", windows=True)
+        for run, game_path in ((linux, "/stage/game"), (windows, r"\\?\C:\stage\game")):
+            run["console_version_observations"].append(f"GameDLL pathname: {game_path}")
+        self.evaluate(linux, windows)
+        matrix = self.root / "matrix.json"
+        matrix.write_text(json.dumps({"schema_version": 1, "runtimes": [
+            {**run["runtime"]["components"], "id": run["runtime"]["id"], "os": run["runtime"]["os"],
+             "maps": run["runtime"]["map_itinerary"], "installation": "/home/private/install",
+             "plugin": "/home/private/plugin.so", "password": "fixture-secret"}
+            for run in (linux, windows)
+        ]}))
+        command = [sys.executable, runner.__file__]
+        bundle = self.root / "bundle"
+        exported = subprocess.run([*command, "export-certification", str(self.report), str(matrix), "core", str(bundle)],
+                                  capture_output=True, text=True)
+        self.assertEqual(exported.returncode, 0, exported.stderr)
+        repeat = self.root / "repeat"
+        subprocess.run([*command, "export-certification", str(self.report), str(matrix), "core", str(repeat)],
+                       capture_output=True, text=True, check=True)
+        self.assertEqual((bundle / "manifest.json").read_bytes(), (repeat / "manifest.json").read_bytes())
+        for rid in ("linux", "windows"):
+            event = Path(rid) / "events.jsonl"
+            self.assertEqual((bundle / event).read_bytes(), (self.root / event).read_bytes())
+        self.assertNotIn("fixture-secret", (bundle / "matrix.json").read_text())
+        self.assertNotIn(r"C:\\stage", (bundle / "report.json").read_text())
+        relocated = bundle.rename(self.root / "relocated")
+
+        def verify():
+            return subprocess.run([*command, "verify-certification", str(relocated)], capture_output=True, text=True)
+
+        verified = verify()
+        self.assertEqual(verified.returncode, 0, verified.stderr)
+        extra = relocated / "stdout.log"
+        extra.touch()
+        self.assertIn("file inventory", verify().stderr)
+        extra.unlink()
+        event = relocated / "linux/events.jsonl"
+        event.write_bytes(event.read_bytes() + b"\n")
+        self.assertIn("bundle hash mismatch", verify().stderr)
+        manifest = relocated / "manifest.json"
+        content = runner.load(manifest)
+        content["files"]["linux/events.jsonl"] = runner.digest(event)
+        runner.dump(manifest, content)
+        self.assertIn("does not certify", verify().stderr)
+
+    def test_bundle_refuses_missing_evidence_and_private_event_data(self):
+        row = self.collect("live")
+        path = self.root / "live/events.jsonl"
+        records = path.read_bytes()
+        matrix = self.root / "matrix.json"
+        matrix.write_text(json.dumps({"schema_version": 1, "runtimes": [
+            {**row["runtime"]["components"], "id": "live", "os": "linux", "maps": ["map_one", "map_two"]}
+        ]}))
+        bundle = self.root / "bundle"
+        args = [sys.executable, runner.__file__, "export-certification", str(self.report),
+                str(matrix), "core", str(bundle)]
+        self.evaluate(row)
+        path.unlink()
+        missing = subprocess.run(args, capture_output=True, text=True)
+        self.assertIn("every row certified", missing.stderr)
+
+        events = [json.loads(line) for line in records.splitlines()]
+        events[0]["private"] = "password=private"
+        path.write_text("".join(json.dumps(event) + "\n" for event in events))
+        row["event_log_sha256"] = runner.digest(path)
+        self.assertTrue(self.evaluate(row)["all_certified"])
+        private = subprocess.run(args, capture_output=True, text=True)
+        self.assertIn("potentially private", private.stderr)
+        self.assertFalse(bundle.exists())

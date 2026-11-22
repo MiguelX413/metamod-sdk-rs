@@ -72,7 +72,7 @@ class ElfTests(unittest.TestCase):
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("release.zip:linux/plugin.so: truncated", rejected.stderr)
 
-            if all(shutil.which(cmd) for cmd in ("rsync", "as", "ld", "readelf")) and sys.platform.startswith("linux"):
+            if all(shutil.which(cmd) for cmd in ("as", "ld", "readelf")) and sys.platform.startswith("linux"):
                 source, destination, sdl = root / "steam", root / "stage", root / "system-sdl.so"
                 source.mkdir()
                 link = source / "libSDL2.so"
@@ -91,6 +91,14 @@ class ElfTests(unittest.TestCase):
                     self.assertFalse((stage / "config-link.cfg").is_symlink())
                     self.assertEqual((stage / "config-link.cfg").read_text(), "fixture")
                     self.assertTrue(link.is_symlink())
+
+                link.unlink()
+                link.symlink_to("/usr/lib/i386-linux-gnu/libSDL2-2.0.so.0")
+                result = invoke("stage_installation", source, root / "system-alias", sdl)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "system-alias/libSDL2.so").read_bytes(), sdl.read_bytes())
+                link.unlink()
+                link.symlink_to("libSDL2-2.0.so.0")
 
                 wrong_sdl = root / "wrong-sdl.so"
                 subprocess.run(["ld", "-m", "elf_i386", "-shared", "-soname", "libunrelated.so",
