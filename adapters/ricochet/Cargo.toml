@@ -14,3 +14,7 @@ metamod-sdk-rs = { path = "../../metamod-sdk-rs", default-features = false }
 [[example]]
 name = "ricochet_lifecycle"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "ricochet_map_change"
+crate-type = ["cdylib"]

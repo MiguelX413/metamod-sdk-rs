@@ -157,8 +157,7 @@ and immediate portable slot release remain unsupported by the evidence.
 ## Remaining verification
 
 Win32 and other manager and GameDLL combinations need their own
-observations. Map transitions and reentrant invalidation during stock
-setup remain open. These tests are separate from compatibility certification.
+observations. Reentrant invalidation during stock setup remains open. These tests are separate from compatibility certification.
 
 ## Rust SDK and Ricochet adapter
 
@@ -205,3 +204,39 @@ cargo build --locked --release --target i686-unknown-linux-gnu \
 Transfer `target/i686-unknown-linux-gnu/release/examples/libricochet_lifecycle.so`
 and pass it to the same isolated `run-linux.sh` command in `stock` mode.
 The example is a test plugin for the verified stock deployments.
+
+## Live map change with a pending removal
+
+The [map-change example](../adapters/ricochet/examples/ricochet_map_change.rs)
+passed on **Valve HLDS build 8684** and **ReHLDS 3.15.0.896-dev**, both
+Linux i686 with classic Metamod 1.21.1-am and stock Ricochet. Both servers
+changed from `rc_arena` to `rc_deathmatch` and exited cleanly.
+
+1. The probe created a fake client on the first map and observed
+   `RemovalQueued`. The runner submitted the probe command and
+   `changelevel` in one console line, placing the map command ahead of
+   the kick appended by the probe.
+2. Both engines delivered the old client's disconnect while the handle
+   was still pending, before map deactivation. The native log identified
+   the level change as the reason for the drop. At deactivation, the old
+   handle became `Invalidated` and its `PlayerId` was no longer current.
+3. The probe confirmed that the old handle could no longer request
+   removal. Creation on the second map reused the slot with a distinct
+   `PlayerId`. The replacement stayed current until its own queued kick,
+   which the SDK independently observed and confirmed as `Removed`.
+
+The runner checks the destination map in the server's `status` output
+and corroborates the reason for each drop. The test covers a normal live
+map transition while a kick is pending. A map change reentering during
+native allocation or GameDLL setup remains covered only by mocks.
+
+```bash
+cargo build --locked --release --target i686-unknown-linux-gnu \
+  -p metamod-ricochet --example ricochet_map_change
+bash verify/fake-client/run-linux.sh /path/to/saved/installs \
+  /path/to/libricochet_map_change.so /path/to/new-map-probe-run map
+```
+
+Transfer the built shared object to the audit host before running the
+script. The tested binary SHA-256 was
+`2cad8c4bf38cfe76016f739b904d1717362772d97edfb53dda2141d2f625e238`.

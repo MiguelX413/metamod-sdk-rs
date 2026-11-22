@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run against saved audit snapshots on a disposable test host.
 set -euo pipefail
-[[ $# == 3 || $# == 4 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [stock]" >&2; exit 2; }
+[[ $# == 3 || $# == 4 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [stock|map]" >&2; exit 2; }
 base=$(realpath -e -- "$1")
 fixture=$(realpath -e -- "$2")
 output=$(realpath -- "$3")
@@ -12,7 +12,8 @@ mode=${4:-fixture}
 case "$mode" in
   fixture) marker=FAKE_FIXTURE ;;
   stock) marker=FAKE_STOCK ;;
-  *) echo 'Expected stock or no mode argument' >&2; exit 2 ;;
+  map) marker=FAKE_MAP ;;
+  *) echo 'Expected stock, map, or no mode argument' >&2; exit 2 ;;
 esac
 mkdir -- "$output"
 ulimit -c 0
@@ -28,7 +29,7 @@ for engine in linux-hlds linux-rehlds; do
   (
     cd "$output/$engine"
     mkdir -p ricochet/addons/mm_fixture
-    if [[ $mode == stock ]]; then
+    if [[ $mode != fixture ]]; then
       gamedll=dlls/ricochet.so
       install -m 755 -- "$fixture" ricochet/addons/mm_fixture/ricochet_probe.so
       printf 'linux addons/mm_fixture/ricochet_probe.so\n' >ricochet/addons/mm_fixture/plugins.ini
@@ -49,15 +50,31 @@ for engine in linux-hlds linux-rehlds; do
       +localinfo mm_pluginsfile addons/mm_fixture/plugins.ini \
       +localinfo mm_gamedll "$gamedll" +map rc_arena <&3 >"$output/$engine.log" 2>&1 &
     pid=$!
+    sent_change=0
     for ((n=0; n<30; ++n)); do
       if grep -Eq "^$marker (PASS|FAIL)|Host_Error" "$output/$engine.log" || ! kill -0 "$pid" 2>/dev/null; then
         break
       fi
+      if [[ $mode == map ]] && (( ! sent_change )) && grep -q '^FAKE_MAP READY$' "$output/$engine.log"; then
+        # One command-buffer line places changelevel ahead of the kick the
+        # probe queues while handling sdk_fake_map_probe.
+        printf 'sdk_fake_map_probe; changelevel rc_deathmatch\n' >&3
+        sent_change=1
+      fi
       sleep .4
     done
-    printf 'version\nmeta version\nquit\n' >&3
+    printf 'version\nmeta version\nstatus\nquit\n' >&3
     wait "$pid" || exit $?
     grep -q "^$marker PASS " "$output/$engine.log"
+    if [[ $mode == map ]]; then
+      grep -E '^map[[:space:]]*:[[:space:]]+rc_deathmatch([[:space:]]|$)' "$output/$engine.log"
+      # Both hosts dispatch the map-triggered disconnect before deactivation.
+      # Corroborate why the old slot was freed outside the SDK's pre-hook.
+      grep -A1 -F 'Dropped SDKMapOld from server' "$output/$engine.log" |
+        grep -F 'Reason:  Dropping fakeclient on level change'
+      grep -A1 -F 'Dropped SDKMapReplacement from server' "$output/$engine.log" |
+        grep -F 'Reason:  Kicked'
+    fi
   ) &
   wait "$!" || failed=1
   grep -E "$marker|Host_Error|ReHLDS version|Exe build" "$output/$engine.log" || true

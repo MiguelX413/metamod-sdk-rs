@@ -71,9 +71,9 @@ return `EngineError::Unavailable`.
    removal with explicit confirmation. [SDK and adapter results](fake-client-lifecycle.md#rust-sdk-and-ricochet-adapter)
 3. **Verify the lifecycle.** Exercise creation failure, nested callbacks,
    disconnect, slot reuse, and map transitions with synthetic fixtures.
-   Then test the supported sequences on disposable servers and record the
-   exact engine, Metamod, GameDLL, and platform for each result. Track Win32
-   admission verification independently.
+   Live Linux i686 tests passed on both engines for a map change with
+   pending removal, same-slot reuse, and confirmed replacement removal.
+   Win32 remains pending. [Live map-change results](fake-client-lifecycle.md#live-map-change-with-a-pending-removal)
 
 The first increment covers creation, identity, and supported teardown.
 Movement, bot AI, and game-specific setup are later work.
