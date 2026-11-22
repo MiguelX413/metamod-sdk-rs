@@ -1,0 +1,71 @@
+import os
+from pathlib import Path
+import shutil
+import struct
+import subprocess
+import tempfile
+import unittest
+import zipfile
+
+from elf import validate_shared_object
+
+
+def header():
+    return bytearray(struct.pack("<16sHHIIIIIHHHHHH", b"\x7fELF\x01\x01\x01",
+                                 3, 3, 1, 0, 0, 0, 0, 52, 0, 0, 0, 0, 0))
+
+
+class ElfTests(unittest.TestCase):
+    def test_header_validation(self):
+        validate_shared_object(header(), "fixture.so")
+        for offset, value, reason in [
+            (0, 0, "magic"), (4, 2, "ELF32"), (5, 2, "little-endian"),
+            (16, 2, "ET_DYN"), (18, 62, "EM_386"), (20, 0, "version"), (40, 20, "header size"),
+        ]:
+            with self.subTest(offset=offset):
+                data = header()
+                data[offset] = value
+                with self.assertRaisesRegex(ValueError, reason):
+                    validate_shared_object(data, "fixture.so")
+        for length in (4, 15, 20, 51):
+            with self.subTest(length=length), self.assertRaisesRegex(ValueError, "truncated"):
+                validate_shared_object(header()[:length], "fixture.so")
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "requires Bash on POSIX")
+    def test_ubuntu_validation_and_extraction(self):
+        script_dir = Path(__file__).resolve().parent
+        script = (script_dir / "ricochet_audit_ubuntu.sh").read_text()
+        functions = "\n".join(name + "() {" + script.split(name + "() {", 1)[1].split("\n}", 1)[0] + "\n}"
+                              for name in ("validate_elf32", "extract_elf32"))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            binary = root / "plugin.so"
+            binary.write_bytes(header())
+            mock_file = root / "file"
+            mock_file.write_text('#!/bin/sh\nprintf "%s\\n" "$FILE_DESCRIPTION"\n')
+            mock_file.chmod(0o755)
+
+            def invoke(command, *args, description="Intel i386"):
+                return subprocess.run(["bash", "-c", functions + "\n" + command + ' "$@"', "_", *map(str, args)],
+                                      env={**os.environ, "SCRIPT_DIR": str(script_dir),
+                                           "PATH": str(root) + os.pathsep + os.environ["PATH"],
+                                           "FILE_DESCRIPTION": description}, capture_output=True, text=True)
+
+            for description in ("Intel i386", "Intel 80386", "localized output"):
+                self.assertEqual(invoke("validate_elf32", binary, description=description).returncode, 0)
+            archive = root / "release.zip"
+            output = root / "extracted.so"
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("linux/plugin.so", binary.read_bytes())
+            self.assertEqual(invoke("extract_elf32", archive, r"plugin\.so", output).returncode, 0)
+            self.assertEqual(output.read_bytes(), binary.read_bytes())
+            binary.write_bytes(header()[:20])
+            rejected = invoke("validate_elf32", binary, description="ELF 32-bit shared object, Intel 80386")
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("truncated ELF32 header", rejected.stderr)
+            self.assertIn("Intel 80386", rejected.stderr)
+            with zipfile.ZipFile(archive, "w") as bundle:
+                bundle.writestr("linux/plugin.so", binary.read_bytes())
+            rejected = invoke("extract_elf32", archive, r"plugin\.so", output)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("release.zip:linux/plugin.so: truncated", rejected.stderr)

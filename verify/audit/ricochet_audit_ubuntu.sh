@@ -5,7 +5,7 @@ set -Eeuo pipefail
 umask 077
 IFS=$'\n\t'
 
-HERE="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 WORKDIR="${HOME}/ricochet-audit-lab"
 REPO_REF="master"
 AUDIT_PLUGIN=""
@@ -155,6 +155,12 @@ done
 
 say() { printf '\n[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 die() { echo "ERROR: $*" >&2; exit 1; }
+validate_elf32() {
+  if ! python3 "$SCRIPT_DIR/elf.py" "$1"; then
+    file -- "$1" >&2 || true
+    return 1
+  fi
+}
 trap 'echo "ERROR near line $LINENO. Existing files and partial logs are preserved." >&2' ERR
 [[ -z $CERTIFY_PROFILE ]] || (( ! PREPARE_ONLY )) || die "--certify requires a live run"
 [[ -z $PLUGIN_PROVENANCE || -r $PLUGIN_PROVENANCE ]] || die "Cannot read --plugin-provenance"
@@ -538,7 +544,7 @@ RUNROOT="$WORKDIR/runs/$RUN_ID"
 mkdir -p "$STEAMCMD_DIR" "$BASE" "$DOWNLOADS" "$RUNROOT"
 PLUGIN="$RUNROOT/libmetamod_audit.so"
 cp -- "$AUDIT_PLUGIN" "$PLUGIN"
-file -- "$PLUGIN" | grep -q 'ELF 32-bit.*shared object.*Intel 80386' || die "Audit plugin must be a Linux i686 shared library."
+validate_elf32 "$PLUGIN" || die "Invalid audit plugin."
 PLUGIN_SHA="$(sha256sum "$PLUGIN" | cut -d' ' -f1)"
 
 
@@ -724,9 +730,12 @@ fi
 # files are extracted and archive paths cannot escape the destination.
 extract_elf32() {
   local archive="$1" basename_regex="$2" target="$3"
-  python3 - "$archive" "$basename_regex" "$target" <<'PY'
-import pathlib, re, struct, sys, zipfile
-archive, pattern, target = sys.argv[1:]
+  python3 - "$SCRIPT_DIR" "$archive" "$basename_regex" "$target" <<'PY'
+import pathlib, re, sys, zipfile
+sys.path.insert(0, sys.argv[1])
+from elf import validate_shared_object
+
+archive, pattern, target = sys.argv[2:]
 with zipfile.ZipFile(archive) as z:
     choices = [x for x in z.infolist() if not x.is_dir() and re.fullmatch(pattern, pathlib.PurePosixPath(x.filename).name)]
     # Some release archives ship Linux binaries in several arch-specific directories.
@@ -737,8 +746,10 @@ with zipfile.ZipFile(archive) as z:
     if len(choices) != 1:
         raise SystemExit(f'Ambiguous/missing Linux library {pattern} in {archive}: {[x.filename for x in choices]}')
     data = z.read(choices[0])
-    if len(data) < 20 or data[:6] != b'\x7fELF\x01\x01' or struct.unpack_from('<H', data, 18)[0] != 3:
-        raise SystemExit(f'Not a Linux x86 ELF32 file: {choices[0].filename}')
+    try:
+        validate_shared_object(data, f'{archive}:{choices[0].filename}')
+    except ValueError as error:
+        raise SystemExit(str(error))
     dest = pathlib.Path(target)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
@@ -768,7 +779,7 @@ fi
 UPDATED_PRESENT=0
 if [[ -n $UPDATED_DLL ]]; then
   [[ -f $UPDATED_DLL ]] || die "Not a file: $UPDATED_DLL"
-  file "$UPDATED_DLL" | grep -q 'ELF 32-bit.*Intel 80386' || die "ricochet-updated must be an x86 ELF32 Linux GameDLL"
+  validate_elf32 "$UPDATED_DLL" || die "Invalid ricochet-updated GameDLL."
   for variant in linux-hlds linux-rehlds; do
     cp -- "$UPDATED_DLL" "$INSTALLS/$variant/ricochet/dlls/ricochet_updated.so"
     chmod 755 "$INSTALLS/$variant/ricochet/dlls/ricochet_updated.so"
