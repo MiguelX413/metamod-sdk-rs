@@ -49,8 +49,9 @@ return `EngineError::Unavailable`.
 
 ## Next milestones
 
-1. Verify the implemented client admission hook and Metamod result handling
-   on real Linux i686 and Win32 hosts.
+1. Finish live client admission verification on Win32. Linux i686 passed
+   deferral, rejection, and reconnect on Valve HLDS with classic Metamod
+   and on ReHLDS with Metamod-R. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
 2. Add validated message construction and fake-client lifecycle management,
    then audit movement/physics and expand raw payload coverage family by family.
 3. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)

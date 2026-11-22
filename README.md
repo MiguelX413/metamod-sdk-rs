@@ -331,6 +331,9 @@ and plugin panics
 fall back to `MRES_IGNORED`. The host must supply readable inputs and keep
 the output buffer writable until the hook returns.
 
+The engine demo passed live admission tests on Linux i686 with both Valve
+HLDS and ReHLDS. Win32 live testing is pending. [Live Ricochet results](docs/runtime-audit.md#live-ricochet-client-admission-results)
+
 #### Test both outcomes with the engine demo
 
 Build and install the engine demo as described above. Restart a disposable

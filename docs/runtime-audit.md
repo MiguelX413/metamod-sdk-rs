@@ -266,6 +266,30 @@ replay cannot establish that captured process mappings or console
 observations came from a real server. The archived November 22 certificate
 is a summary. Its original event bundle is not included in the repository.
 
+## Live Ricochet client admission results
+
+On November 22, 2026, the engine demo was exercised with a real Ricochet
+client on disposable copies of the saved Linux i686 servers. Both runs
+used stock Ricochet on `rc_arena`.
+
+| Runtime | Deferral | Rejection | Reconnect after rejection |
+| --- | --- | --- | --- |
+| Valve HLDS build 8684 with classic Metamod 1.21.1-am | Pass | Pass | Pass |
+| ReHLDS 3.15.0.896-dev with Metamod-R 1.3.0.149 | Pass | Pass | Pass |
+| Win32 | Pending | Pending | Pending |
+
+The deferred connections joined and produced the demo's player-slot
+greeting. The client named `RustAdmissionReject` received
+`Rust admission demo rejected this name.` and produced no greeting.
+An allowed client subsequently joined the same server instance that
+rejected the test name. The disposable Valve server was restarted between
+the initial deferral and the rejection/reconnect pair because the first
+client session still occupied a slot.
+
+These observations cover the engine demo on the two listed Linux
+configurations. The manual runs are separate from core v2 certification
+and synthetic ABI coverage. [Live test procedure](../README.md#test-both-outcomes-with-the-engine-demo)
+
 ## Console and manual protocol
 
 Use a real local console if the runtime fails to receive piped stdin or redirect output. In particular, a Win32 engine may use console APIs that bypass redirected stdin/stdout. Prepare an isolated copy with `run ... --only ID --prepare-only`. Its `launch.json` contains the exact argv, working directory, and environment additions. Start the command in that directory using those values. Preparation writes a `runtime.json` and retains the staging copy for the operator. Keep that copy local and remove it when done. The prepare-only exit code describes staging, and the report state is `PREPARED`.
