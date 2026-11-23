@@ -288,7 +288,7 @@ client session still occupied a slot.
 
 These observations cover the engine demo on the two listed Linux
 configurations. The manual runs are separate from core v2 certification
-and synthetic ABI coverage. [Live test procedure](../README.md#test-both-outcomes-with-the-engine-demo)
+and synthetic ABI coverage. [Live test procedure](sdk-reference.md#test-both-outcomes-with-the-engine-demo)
 
 ## Console and manual protocol
 
