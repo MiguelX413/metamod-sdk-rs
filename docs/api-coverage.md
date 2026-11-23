@@ -97,7 +97,7 @@ Movement, bot AI, and game-specific setup are later work.
    Metamod and other plugins. The engine uses shared message state and
    validates the registered payload size at send time. Establish a sound
    contract before exposing a safe send operation.
-   [ReHLDS message implementation](https://github.com/rehlds/ReHLDS/blob/1963001/rehlds/engine/pr_cmds.cpp#L2076-L2179)
+   [Live begin/write/end reentry results](user-message-reentry.md)
 
 ### Memory Contracts Validation v1
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run against saved audit snapshots on a disposable test host.
 set -euo pipefail
-[[ $# -ge 3 && $# -le 5 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [stock|map|reentry|allocation-reentry [GAMEDLL_SO]]" >&2; exit 2; }
+[[ $# -ge 3 && $# -le 5 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [MODE [GAMEDLL_SO]]" >&2; exit 2; }
 base=$(realpath -e -- "$1")
 fixture=$(realpath -e -- "$2")
 output=$(realpath -- "$3")
@@ -18,10 +18,14 @@ case "$mode" in
     marker=FAKE_REENTRY
     gamedll_fixture=$(realpath -e -- "${5:?allocation-reentry requires the fixture GameDLL}")
     ;;
-  *) echo 'Expected stock, map, reentry, allocation-reentry, or no mode argument' >&2; exit 2 ;;
+  message-post-end|message-nested-begin|message-nested-write|message-nested-end)
+    marker=MESSAGE_PROBE
+    gamedll_fixture=$(realpath -e -- "${5:?message mode requires the fixture GameDLL}")
+    ;;
+  *) echo "Unknown mode: $mode" >&2; exit 2 ;;
 esac
-if [[ $# == 5 && $mode != allocation-reentry ]]; then
-  echo 'A separate GameDLL is only used in allocation-reentry mode.' >&2
+if [[ $# == 5 && $mode != allocation-reentry && $mode != message-* ]]; then
+  echo 'A separate GameDLL is only used in allocation-reentry and message modes.' >&2
   exit 2
 fi
 mkdir -- "$output"
@@ -54,6 +58,13 @@ for engine in linux-hlds linux-rehlds; do
     else
       unset METAMOD_FAKE_ALLOCATION_REENTRY
     fi
+    if [[ $mode == message-* ]]; then
+      gamedll=dlls/fake_fixture.so
+      install -m 755 -- "$gamedll_fixture" "ricochet/$gamedll"
+      export METAMOD_MESSAGE_PROBE="${mode#message-}"
+    else
+      unset METAMOD_MESSAGE_PROBE
+    fi
     printf 'gamedll %s\nplugins_file addons/mm_fixture/plugins.ini\n' "$gamedll" >ricochet/addons/mm_fixture/config.ini
     cp -- ricochet/addons/classic/dlls/metamod_i386.so ricochet/addons/classic/dlls/metamod.so
     sed -i '/^gamedll_linux /c\gamedll_linux "addons/classic/dlls/metamod.so"' ricochet/liblist.gam
@@ -68,7 +79,7 @@ for engine in linux-hlds linux-rehlds; do
     pid=$!
     sent_change=0
     for ((n=0; n<30; ++n)); do
-      if grep -Eq "^$marker (PASS|FAIL)|Host_Error" "$output/$engine.log" || ! kill -0 "$pid" 2>/dev/null; then
+      if grep -Eq "^$marker (PASS|FAIL|outer completed)|Host_Error|FATAL ERROR" "$output/$engine.log" || ! kill -0 "$pid" 2>/dev/null; then
         break
       fi
       if [[ $mode == map ]] && (( ! sent_change )) && grep -q '^FAKE_MAP READY$' "$output/$engine.log"; then
@@ -80,7 +91,38 @@ for engine in linux-hlds linux-rehlds; do
       sleep .4
     done
     printf 'version\nmeta version\nstatus\nquit\n' >&3
-    wait "$pid" || exit $?
+    status=0
+    wait "$pid" || status=$?
+    printf 'exit_status=%s\n' "$status" >"$output/$engine.exit"
+    if [[ $mode == message-* ]]; then
+      log="$output/$engine.log"
+      grep -Fx "MESSAGE_HOOK ${mode#message-}" "$log"
+      case "$mode" in
+        message-post-end)
+          ((status == 0))
+          grep -Fx 'MESSAGE_HOOK second message completed' "$log"
+          grep -Fx 'MESSAGE_PROBE outer completed' "$log"
+          ;;
+        message-nested-write)
+          ((status == 0))
+          grep -Fx 'MESSAGE_HOOK nested write returned' "$log"
+          grep -Fx 'MESSAGE_PROBE outer completed' "$log"
+          ;;
+        *)
+          ((status != 0 && status != 124 && status != 137))
+          ! grep -q '^MESSAGE_PROBE outer completed$' "$log" || exit 1
+          case "$mode" in
+            message-nested-begin) grep -Ei 'new message started|already started' "$log" ;;
+            message-nested-end)
+              grep -Fx 'MESSAGE_HOOK nested end returned' "$log"
+              grep -Ei 'no active message|without MessageBegin' "$log"
+              ;;
+          esac
+          ;;
+      esac
+      exit 0
+    fi
+    ((status == 0)) || exit "$status"
     grep -q "^$marker PASS " "$output/$engine.log"
     if [[ $mode == reentry || $mode == allocation-reentry ]]; then
       grep -E '^map[[:space:]]*:[[:space:]]+rc_deathmatch([[:space:]]|$)' "$output/$engine.log"

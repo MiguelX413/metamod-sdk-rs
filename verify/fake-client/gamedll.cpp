@@ -9,6 +9,7 @@ static globalvars_t *globals;
 static bool attempted;
 static bool active;
 static bool allocation_reentry;
+static bool message_probe;
 static bool change_requested;
 static int map_activations;
 static edict_t *prepared;
@@ -84,9 +85,27 @@ static void keyvalue(edict_t *entity, KeyValueData *data) {
 static void activate(edict_t *, int, int) { active = true; ++map_activations; }
 static void deactivate() { active = false; }
 
+static void message_frame() {
+    const int outer = engine.pfnRegUserMsg("SDKOuter", 1);
+    const int nested = engine.pfnRegUserMsg("SDKNested", 1);
+    if (outer <= 0 || nested <= 0) {
+        std::puts("MESSAGE_PROBE FAIL registration");
+        std::fflush(stdout);
+        return;
+    }
+    std::puts("MESSAGE_PROBE outer begin");
+    std::fflush(stdout);
+    engine.pfnMessageBegin(MSG_ALL, outer, nullptr, nullptr);
+    engine.pfnWriteByte(17);
+    engine.pfnMessageEnd();
+    std::puts("MESSAGE_PROBE outer completed");
+    std::fflush(stdout);
+}
+
 static void start_frame() {
     if (allocation_reentry || attempted || !active) return;
     attempted = true;
+    if (message_probe) return message_frame();
     const int capacity = globals->maxClients;
     if (capacity < 2 || capacity > 8) {
         std::puts("FAKE_FIXTURE FAIL capacity");
@@ -145,6 +164,7 @@ static void start_frame() {
 extern "C" void GiveFnptrsToDll(enginefuncs_t *functions, globalvars_t *vars) {
     engine = *functions;
     globals = vars;
+    message_probe = std::getenv("METAMOD_MESSAGE_PROBE") != nullptr;
     allocation_reentry = std::getenv("METAMOD_FAKE_ALLOCATION_REENTRY") != nullptr;
 }
 
