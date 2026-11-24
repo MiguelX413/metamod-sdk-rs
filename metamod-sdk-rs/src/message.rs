@@ -113,6 +113,21 @@ impl UserMessagePayload {
     }
 
     /// Copy native string bytes, including the terminal NUL.
+    ///
+    /// A failed field append leaves earlier fields intact. Include the string's
+    /// NUL byte when calculating the payload budget.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{MAX_USER_MESSAGE_BYTES, MessagePayloadError, UserMessagePayload};
+    /// use std::ffi::CString;
+    ///
+    /// let mut payload = UserMessagePayload::new();
+    /// payload.write_byte(7)?;
+    /// let oversized = CString::new(vec![b'x'; MAX_USER_MESSAGE_BYTES]).unwrap();
+    /// assert_eq!(payload.write_string(&oversized), Err(MessagePayloadError::TooLong));
+    /// assert_eq!(payload.as_bytes(), &[7]);
+    /// # Ok::<(), MessagePayloadError>(())
+    /// ```
     pub fn write_string(&mut self, value: &CStr) -> Result<(), MessagePayloadError> {
         self.append(value.to_bytes_with_nul())
     }
@@ -218,6 +233,23 @@ impl std::error::Error for MessageLookupError {}
 impl crate::MetaMod<'_, '_> {
     /// Look up a registered user message by its native name. A missing
     /// registration is distinct from a missing utility or active map.
+    ///
+    /// Check a prepared payload against the current registration without sending
+    /// anything. The name and field layout must come from the GameDLL/client
+    /// protocol; this only checks availability and registered byte count.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, UserMessagePayload};
+    /// use std::ffi::CStr;
+    ///
+    /// fn validate(ctx: &Context<'_>, name: &CStr, payload: &UserMessagePayload)
+    ///     -> Result<(), Box<dyn std::error::Error>>
+    /// {
+    ///     let registration = ctx.metamod().user_message(name)?;
+    ///     registration.validate_payload(payload)?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn user_message(&self, name: &CStr) -> Result<RegisteredUserMessage, MessageLookupError> {
         let map = crate::trace::active_map().ok_or(MessageLookupError::Unavailable)?;
         let lookup = self

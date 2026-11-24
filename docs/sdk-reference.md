@@ -145,6 +145,33 @@ User-message validation checks byte counts and session identity; its separate
 unsafe sending contract still requires host ownership and client protocol
 readiness.
 
+### Finding feature examples
+
+The Rustdoc crate homepage has a **Worked examples** index. These examples
+compile with and without the default procedural-macro feature. Open the local
+[preview](#rustdoc-previews) and follow the index, or search Rustdoc for the
+following APIs:
+
+| Feature | Example location |
+| --- | --- |
+| Normalize dynamic console names | `OwnedConsoleName::normalize` |
+| Read a CVar and update its value | `Server::set_cvar` |
+| Retain and validate a player selection across callbacks | `Context::player_at` |
+| Copy player information into an owned message | `Context::player_info` |
+| Reject a connection by exact name | `ClientAdmission` |
+| Observe classname assignments before map activation | `KeyValueEvent` |
+| Observe the original lag-compensation result | `PostHookResult` |
+| Reject output exceeding Metamod's utility limit | `MetaMod::print_console` |
+| Handle an oversized string append without losing earlier fields | `UserMessagePayload::write_string` |
+| Validate prepared bytes against a message registration | `MetaMod::user_message` |
+
+The hook examples show the required opt-in constants. Their metadata is hidden
+from the rendered snippets to focus on callback behavior; use the registration
+patterns in [Write a Metamod plugin](#write-a-metamod-plugin) for a complete
+plugin. Host-dependent examples define helpers or callbacks rather than invoking
+native services in doctests. Message validation does not transmit bytes or
+establish the unsafe host contract for sending.
+
 ### Commands and CVars
 
 Use `ctx.server()` to register, read, and set CVars. For a working example, see

@@ -346,6 +346,26 @@ impl<'callback> Context<'callback> {
     }
 
     /// Look up the currently observed session in a reusable slot.
+    ///
+    /// Keep the full session ID when scheduling work for a later callback. Looking
+    /// up the slot again would identify its new occupant after a reconnect.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, PlayerId, PlayerSlot};
+    ///
+    /// #[derive(Default)]
+    /// struct Selection {
+    ///     player: Option<PlayerId>,
+    /// }
+    /// impl Selection {
+    ///     fn select(&mut self, ctx: &Context<'_>, slot: PlayerSlot) {
+    ///         self.player = ctx.player_at(slot);
+    ///     }
+    ///     fn current(&self, ctx: &Context<'_>) -> Option<PlayerId> {
+    ///         self.player.filter(|id| ctx.is_player_current(*id))
+    ///     }
+    /// }
+    /// ```
     pub fn player_at(&self, slot: PlayerSlot) -> Option<PlayerId> {
         crate::__ffi::player_at(slot)
     }
@@ -375,6 +395,19 @@ impl MetaMod<'_, '_> {
     }
 
     /// Print a validated message through Metamod's console utility.
+    ///
+    /// Reject an oversized message instead of silently truncating it:
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, MetamodMessage, MetamodMessageTooLong};
+    /// use std::ffi::CStr;
+    ///
+    /// fn announce(ctx: &Context<'_>, text: &CStr) -> Result<(), MetamodMessageTooLong> {
+    ///     let validated: &MetamodMessage = text.try_into()?;
+    ///     ctx.metamod().print_console(validated);
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn print_console(&self, message: &MetamodMessage) {
         self.write(self.context.console, message);
     }

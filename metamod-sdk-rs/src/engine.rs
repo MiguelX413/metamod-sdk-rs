@@ -320,6 +320,15 @@ impl TryFrom<CString> for OwnedConsoleName {
 
 impl OwnedConsoleName {
     /// Validate an owned C string and lowercase its ASCII letters in place.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::OwnedConsoleName;
+    ///
+    /// let name = OwnedConsoleName::normalize(c"My_Plugin_Mode".to_owned())?;
+    /// assert_eq!(name.as_c_str(), c"my_plugin_mode");
+    /// assert!(OwnedConsoleName::normalize(c"bad name".to_owned()).is_err());
+    /// # Ok::<(), metamod_sdk_rs::EngineError>(())
+    /// ```
     pub fn normalize(name: CString) -> Result<Self, EngineError> {
         if !valid_name(name.as_bytes()) {
             return Err(EngineError::InvalidName);
@@ -667,6 +676,24 @@ impl Server<'_, '_> {
     }
 
     /// Set an existing CVar through the engine, which copies the supplied value.
+    ///
+    /// Read a plugin-owned CVar before updating it. The read is an owned snapshot;
+    /// it does not make the subsequent write atomic or prevent native reentry.
+    /// Register the CVar once in an attached callback before using this helper.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, EngineError, console_name, cvar_value};
+    ///
+    /// fn enable(ctx: &Context<'_>) -> Result<(), EngineError> {
+    ///     let server = ctx.server();
+    ///     let name = console_name!(c"my_plugin_enabled");
+    ///     let value = server.cvar(name)?.ok_or(EngineError::UnknownCvar)?;
+    ///     if value.as_bytes() != b"1" {
+    ///         server.set_cvar(name, cvar_value!(c"1"))?;
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn set_cvar(&self, name: &ConsoleName, new_value: &CvarValue) -> Result<(), EngineError> {
         let engine = engine()?;
         let set = engine.set_cvar.ok_or(EngineError::Unavailable)?;
@@ -830,6 +857,18 @@ pub(crate) unsafe fn read_command() -> Option<Command> {
 impl Context<'_> {
     /// Copy engine information for this session. The owned strings remain
     /// readable after the session ends; no engine entity pointer escapes.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, PlayerId};
+    /// use std::ffi::CString;
+    ///
+    /// fn user_id_message(ctx: &Context<'_>, player: PlayerId) -> Option<CString> {
+    ///     let info = ctx.player_info(player)?;
+    ///     let user_id = info.user_id?;
+    ///     // This formats an owned observation; it does not pin the session.
+    ///     CString::new(format!("Player in slot {} has user ID {}\n", info.id.slot(), user_id)).ok()
+    /// }
+    /// ```
     pub fn player_info(&self, id: PlayerId) -> Option<PlayerInfo> {
         let engine = __ffi::engine()?;
         let (current, serial) = __ffi::player_session(id.slot())?;

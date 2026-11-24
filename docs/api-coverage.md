@@ -170,6 +170,10 @@ configurations now build with **zero missing-docs warnings**. Public fields,
 error and lifecycle variants, accessors, metadata, and hook opt-ins have
 comments explaining their semantics. Examples cover CVar registration, command
 arguments, entity snapshots, trace filtering, and queued fake-client removal.
+Additional examples cover runtime name normalization, CVar updates, retained
+player selections, player information, admission and keyvalue opt-ins, post-hook
+observations, checked console output, payload overflow, and registration-size
+validation. The Rustdoc homepage indexes these feature examples.
 The SDK crate now denies `missing_docs`, so new visible public items require
 comments in ordinary builds as well as documentation builds. Hidden FFI helpers,
 generated raw bindings, and separate crates remain outside this SDK policy.

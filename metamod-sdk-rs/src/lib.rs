@@ -58,6 +58,25 @@
 //! [`prelude`] collects common imports. Native calls can synchronously change
 //! lifecycle state; check errors for unavailable services or expired identities.
 //!
+//! # Worked examples
+//!
+//! Each linked API includes a compiled example. Helpers that accept a
+//! [`Context`] are intended to be called from plugin callbacks; compiling them
+//! does not execute a live host operation.
+//!
+//! | Example | API documentation |
+//! | --- | --- |
+//! | Validate and normalize a runtime console name | [`OwnedConsoleName::normalize`] |
+//! | Read and update a plugin CVar | [`Server::set_cvar`] |
+//! | Keep a player selection across callbacks | [`Context::player_at`] |
+//! | Copy a player's native user ID | [`Context::player_info`] |
+//! | Reject a reserved client name | [`ClientAdmission`] |
+//! | Observe owned map keyvalue inputs | [`KeyValueEvent`] |
+//! | Observe a lag-compensation result without replacing it | [`PostHookResult`] |
+//! | Reject oversized Metamod console output | [`MetaMod::print_console`] |
+//! | Preserve a payload after an oversized field write | [`UserMessagePayload::write_string`] |
+//! | Check payload size against a native registration | [`MetaMod::user_message`] |
+//!
 //! # Registration without procedural macros
 //!
 //! Set `default-features = false` on the dependency, implement
