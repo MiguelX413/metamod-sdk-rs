@@ -269,6 +269,76 @@ class ProtocolTests(unittest.TestCase):
             fields = {row["field"] for row in json.loads(unhealthy.stdout) if row["severity"] == "failure"}
             self.assertEqual(fields, {"protocol_complete", "exit_status", "sanitizer_diagnostics"})
 
+    def bind_native(self, folder, logs):
+        import uuid
+        import native_identity
+        artifacts = folder / 'artifacts'
+        artifacts.mkdir(exist_ok=True)
+        for name in native_identity.ARTIFACTS:
+            (artifacts / name).write_bytes(name.encode())
+        build = dict(schema_version=1, run_id=str(uuid.uuid4()), target='i686-unknown-linux-gnu',
+                     artifacts={name: runner.digest(artifacts / name) for name in native_identity.ARTIFACTS},
+                     revisions={name: dict(commit='a' * 40, status='', diff_sha256='b' * 64)
+                                for name in ('.', 'upstream/metamod-hl1', 'upstream/hlsdk')},
+                     toolchain=dict(rust='rustc test', cxx='c++ test'),
+                     sanitizers=dict(rust_asan=True, loader_asan_ubsan_lsan=True), environment={})
+        runner.dump(folder / 'build.json', build)
+        with logs[0].open('a') as stream:
+            stream.write(native_identity.PREFIX + json.dumps(build) + '\n')
+        runtime = dict(id='fixture', os='linux', architecture='i686', exit_status=0,
+                       native_identity=dict(run_id=build['run_id'], build_sha256=runner.digest(folder / 'build.json'),
+                                            logs={log.name: runner.digest(log) for log in logs}))
+        runner.dump(folder / 'runtime.json', runtime)
+        return runtime
+
+    def test_native_capture_rejects_source_change_during_build(self):
+        import native_identity
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            work = folder / 'work'
+            output = folder / 'evidence'
+            output.mkdir()
+            (work / 'target/i686-unknown-linux-gnu/release').mkdir(parents=True)
+            (work / 'load').write_bytes(b'loader')
+            for name in native_identity.ARTIFACTS - {'loader'}:
+                (work / 'target/i686-unknown-linux-gnu/release' /
+                 ('lib' + name.replace('-', '_') + '.so')).write_bytes(b'plugin')
+            (output / 'source-before.json').write_text('{}')
+            with patch.object(native_identity, 'source_identity', return_value={'changed': True}):
+                with self.assertRaisesRegex(ValueError, 'source state changed'):
+                    native_identity.capture(output, work)
+            self.assertFalse((output / 'build.json').exists())
+
+    def test_native_identity_rejects_mixed_evidence(self):
+        import native_identity
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            log = folder / 'loader.log'
+            log.write_bytes(b'fixture transcript\n\xff\n')
+            runtime = self.bind_native(folder, [log])
+            self.assertEqual(native_identity.validate(runtime, [log], folder)['target'],
+                             'i686-unknown-linux-gnu')
+            for name in ('run', 'target', 'manifest', 'artifact', 'log', 'missing-log', 'marker'):
+                with self.subTest(name=name):
+                    log.write_text('fixture transcript\n')
+                    runtime = self.bind_native(folder, [log])
+                    if name == 'run':
+                        runtime['native_identity']['run_id'] = 'other'
+                    elif name == 'target':
+                        runtime['architecture'] = 'x86_64'
+                    elif name == 'manifest':
+                        (folder / 'build.json').write_text('{}')
+                    elif name == 'artifact':
+                        (folder / 'artifacts/loader').write_bytes(b'other build')
+                    elif name == 'log':
+                        log.write_text('other run')
+                    elif name == 'marker':
+                        log.write_text('no build marker\n')
+                        runtime['native_identity']['logs']['loader.log'] = runner.digest(log)
+                    with self.assertRaises((ValueError, KeyError)):
+                        native_identity.validate(runtime, [] if name == 'missing-log' else [log], folder)
+
     def test_strict_native_import_requires_complete_unique_evidence(self):
         def native(test, observed="assertion completed"):
             return runner.NATIVE_PREFIX + json.dumps({"schema_version": 1, "test": test, "result": "PASS",
@@ -308,6 +378,7 @@ class ProtocolTests(unittest.TestCase):
                 with self.subTest(name=name):
                     (folder / "out.log").write_bytes(plugin + assertions)
                     (folder / "err.log").write_bytes(stderr)
+                    self.bind_native(folder, [folder / "err.log", folder / "out.log"])
                     proc = subprocess.run([sys.executable, runner.__file__, "import", str(folder / "runtime.json"),
                                            str(folder / name), str(folder / "err.log"), str(folder / "out.log"),
                                            "--native-fixture", "--require-native-suite"], capture_output=True, text=True)

@@ -22,6 +22,7 @@ from evidence import CONSOLE_EVIDENCE, CRASH, NATIVE_PREFIX, SANITIZER, identity
 import certification
 import certification_bundle
 import memory_safety
+import native_identity
 
 SCHEMA = 1
 REPO = Path(__file__).resolve().parents[2]
@@ -1194,6 +1195,9 @@ def main():
             runtime = load(args.runtime)
             runtime["evidence_scope"] = "native-fixture" if args.native_fixture else "runtime"
             label(runtime["id"], "runtime ID")
+            if args.require_native_suite:
+                runtime['verified_native_build'] = native_identity.validate(
+                    runtime, args.logs, args.runtime.resolve().parent)
             records = manual_results(args.manual)
             args.output.mkdir(parents=True)
             metadata = {"run_id": run_id, "execution": "IMPORTED", "executed": True,

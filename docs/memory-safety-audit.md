@@ -123,8 +123,30 @@ otherwise touch the freed edict. Hosts must notify retirement before freeing
 arena storage, keep same-map identity fields readable, and maintain native
 serials correctly. Unobserved retirement remains outside this check.
 
-Run/build identity binding and the remaining versioned memory-contract probes
-are still pending; this increment does not complete the v1 profile or alter
+Strict Linux native imports now require a version 1 build manifest. The collector
+assigns a run UUID, retains the loader and three plugin binaries, and records
+their SHA-256 hashes, target, compiler versions, sanitizer selection, environment
+options, repository/submodule commits, dirty status, and tracked diff hashes.
+Collection rejects source-state changes during compilation and requires the
+pinned repository header paths. Effective sanitizer options are recorded.
+The build manifest is emitted into the transcript before fixture execution.
+`runtime.json` binds the manifest and complete loader log by SHA-256. Import
+checks those hashes, the retained artifacts, target, run UUID, and exactly one
+matching transcript manifest before accepting strict evidence. The verified
+manifest is preserved in the report as `runtime.verified_native_build`.
+
+Use a fresh output directory for every collection; existing evidence is refused.
+Archive the whole directory, including `artifacts/`, `build.json`, `runtime.json`,
+and `loader.log`. Reimport with the same command used by `collect-native.sh`.
+Old transcripts without this binding remain usable for non-strict historical
+inspection but cannot satisfy a new strict import. Dirty status is explicit;
+a commit identifies the base revision, not a clean-build claim. Diff hashes
+cover tracked changes; untracked source contents are not archived. This is
+local integrity checking, not cryptographic attestation of compiler behavior
+or protection against deliberate rewriting of the whole bundle.
+
+The remaining versioned memory-contract probes are still pending; this increment
+does not complete the v1 profile or alter
 compatibility certification.
 
 ## Instrument an existing Linux matrix

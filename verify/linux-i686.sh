@@ -8,6 +8,14 @@ cd "$repo"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
+if [[ -n ${METAMOD_NATIVE_EVIDENCE_DIR:-} ]]; then
+    if [[ "$metamod" != "$repo/upstream/metamod-hl1" || "$hlsdk" != "$repo/upstream/hlsdk" ]]; then
+        echo 'Native evidence requires the pinned repository header paths.' >&2
+        exit 1
+    fi
+    python3 verify/audit/native_identity.py --source "$METAMOD_NATIVE_EVIDENCE_DIR/source-before.json"
+fi
+
 export CARGO_TARGET_DIR="$work/target"
 if [[ ${METAMOD_SANITIZE_PLUGIN:-0} == 1 ]]; then
     # The loader supplies one Clang ASan runtime for the whole process,
@@ -31,6 +39,10 @@ if [[ ${METAMOD_SANITIZE_LOADER:-0} == 1 ]]; then
                 -DMETAMOD_LOADER_LSAN)
 fi
 "${CXX:-c++}" -m32 -std=c++11 -DLINUX -DGNUC "${includes[@]}" "${sanitizers[@]}" verify/load.cpp -pthread -ldl -o "$work/load"
+if [[ -n ${METAMOD_NATIVE_EVIDENCE_DIR:-} ]]; then
+    export METAMOD_SANITIZE_LOADER
+    python3 verify/audit/native_identity.py "$METAMOD_NATIVE_EVIDENCE_DIR" "$work"
+fi
 "$work/layout" > "$work/c-layout"
 "$CARGO_TARGET_DIR/i686-unknown-linux-gnu/debug/examples/layout" > "$work/rust-layout"
 diff -u "$work/c-layout" "$work/rust-layout"
