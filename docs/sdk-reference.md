@@ -378,8 +378,9 @@ declared size. `ctx.message_recipient(player_id)` checks a current tracked
 session and its live edict. These observations can expire during later
 native calls. Recipient validation checks identity and leaves protocol
 readiness and eligibility for future delivery checks. Native sending
-remains separate.
-[Messaging milestones](api-coverage.md#validated-user-messages)
+remains unavailable pending an enforceable ownership contract. Live Linux
+i686 probes demonstrated interference through nested native message calls.
+[Native reentry results](user-message-reentry.md) · [Messaging milestones](api-coverage.md#validated-user-messages)
 
 ## Architecture and safety
 

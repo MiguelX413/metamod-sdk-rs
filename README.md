@@ -84,8 +84,9 @@ upstream headers.
 ## Status and limitations
 
 This is a developing SDK with Linux i686 and Windows x86 build and ABI
-verification. Live coverage varies by feature and host. Plugins load at
-server startup. Stop the server before removing or replacing a plugin. The
+verification. The [live Ricochet core v2 results](docs/certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
+cover six recorded Linux i686 configurations. Live coverage varies by feature
+and host. Plugins load at server startup. Stop the server before removing or replacing a plugin. The
 native host must honor the documented [FFI and lifetime contracts](docs/sdk-reference.md#architecture-and-safety).
 User-message payloads can be built and validated. Native sending is still
 pending. [Messaging roadmap](docs/api-coverage.md#validated-user-messages)
