@@ -187,13 +187,12 @@ impl std::error::Error for EngineError {}
 pub struct ConsoleName(CStr);
 
 impl ConsoleName {
-    /// Borrow the normalized native name.
+    /// The lowercase name as a native C string.
     pub const fn as_c_str(&self) -> &CStr {
         &self.0
     }
 }
 
-// Share validation and normalization between runtime and const construction.
 const fn valid_name(value: &[u8]) -> bool {
     if value.is_empty() || value.len() > 63 {
         return false;
@@ -428,7 +427,7 @@ impl CvarValue {
         Ok(unsafe { &*(value as *const CStr as *const Self) })
     }
 
-    /// Return the original C string without copying or decoding it.
+    /// The original bytes, including any non-UTF-8 text.
     pub const fn as_c_str(&self) -> &CStr {
         &self.0
     }
@@ -760,8 +759,8 @@ pub(crate) unsafe fn read_command() -> Option<Command> {
 }
 
 impl Context<'_> {
-    /// Read engine information for exactly this tracked session. The result
-    /// owns its strings, and no engine entity pointer escapes the lookup.
+    /// Copy engine information for this session. The owned strings remain
+    /// readable after the session ends; no engine entity pointer escapes.
     pub fn player_info(&self, id: PlayerId) -> Option<PlayerInfo> {
         let engine = __ffi::engine()?;
         let (current, serial) = __ffi::player_session(id.slot())?;

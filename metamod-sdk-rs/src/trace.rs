@@ -167,7 +167,7 @@ pub struct EntityKeyValues {
     pub message: Option<CString>,
 }
 
-/// An owned classification and keyvalue snapshot for an entity allocation.
+/// Entity classification and retained keyvalues copied at lookup time.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EntityInfo {
     pub entity: EntityHandle,
@@ -451,8 +451,7 @@ impl TraceSegment {
     /// Validate both endpoints. NaN and infinities return
     /// `TraceError::InvalidCoordinates`.
     ///
-    /// Requiring a valid segment in a constant fails during const evaluation
-    /// if an endpoint is non-finite.
+    /// A constant can require finite endpoints at compile time:
     ///
     /// ```compile_fail,E0080
     /// use metamod_sdk_rs::TraceSegment;

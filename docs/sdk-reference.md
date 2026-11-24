@@ -19,6 +19,9 @@ dependency. The default `macros` feature provides `#[metamod_plugin]`, which
 fills in metadata and exports the Metamod entry points.
 
 ```toml
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
 metamod-sdk-rs = { git = "https://github.com/MiguelX413/metamod-sdk-rs" }
 ```
@@ -60,9 +63,7 @@ The `date` defaults to empty and `log_tag` defaults to the display name.
 Set `default-features = false` on the dependency to omit procedural macros.
 For manual registration, declare `const METADATA: Metadata` in your `impl Plugin` using static
 C strings, then call `export_plugin!(MyPlugin)` once in the library. Both forms
-use the same dispatch. To migrate a stateless plugin, implement `Default`
-and add `&mut self` and `&mut Context<'_>` to its callbacks. Existing
-`Context::log` and `Context::print_console` methods still accept C strings.
+use the same dispatch.
 
 | Plugin method | Timing |
 | --- | --- |
@@ -95,8 +96,9 @@ Parse UTF-8 input with `text.parse::<PlayerSlot>()` or
 including overflow. `Invalid` reports a parsed zero or negative value.
 For native command arguments, call `arg.to_str()` before parsing.
 
-Use the lifecycle hooks to clear map-specific state and
-`ctx.server().print(&CStr)` for console messages within a callback. Use a
+### Console output
+
+Use `ctx.server().print(&CStr)` for console messages within a callback. Use a
 `c"..."` literal or construct a `CString` for dynamic text. The SDK sends
 the original bytes. Include a newline for line output. For Metamod's
 line-oriented utilities, use `ctx.metamod().print_console_trunc(c"Ready")`
@@ -112,9 +114,10 @@ those truncating methods.
 
 ## Engine services
 
-Use `ctx.server()` to register, read, and set CVars. For examples, see
-[engine-demo](../examples/engine-demo/src/lib.rs), which declares its metadata
-explicitly in the attribute. At the server console with that demo installed,
+### Commands and CVars
+
+Use `ctx.server()` to register, read, and set CVars. For a working example, see
+[engine-demo](../examples/engine-demo/src/lib.rs). At the server console with that demo installed,
 `rust_hello` prints the current `rust_hello_message` value and
 `rust_hello "New message"` updates it. `Server::cvar` returns an owned
 `CString`, with `Ok(None)` for an absent variable. Values supplied by Rust
@@ -170,6 +173,8 @@ is 128 tokens including the name and 4,096 bytes including terminators.
 Native command callbacks share the dispatcher and its panic and event-budget
 rules. The portable API does not expose the command sender or authenticate
 the invocation.
+
+### Player information
 
 `ctx.player_info(id)` returns an owned snapshot for a currently observed
 session. Its `Option<PlayerUserId>` contains the positive server-assigned
@@ -379,13 +384,13 @@ Construction makes no engine calls. In an active callback,
 C-string name, and `RegisteredUserMessage::validate_payload` checks its
 declared size. `ctx.message_recipient(player_id)` checks a current tracked
 session and its live edict. These observations can expire during later
-native calls. Recipient validation checks identity and leaves protocol
-readiness and eligibility for future delivery checks. Scoped native sending
+native calls. Recipient validation checks identity; callers must establish protocol
+readiness and eligibility. Scoped native sending
 requires `unsafe { ctx.message_sender() }` and an externally established host
 contract. Its `send_to(name, &payload, player_id)` method supports reliable
 unicast with fresh registration, size, and session validation. Live Linux
 i686 probes demonstrated interference through nested native message calls.
-[Native reentry results](user-message-reentry.md) · [Messaging milestones](api-coverage.md#validated-user-messages)
+[Native reentry results](user-message-reentry.md) · [Messaging support and limits](api-coverage.md#validated-user-messages)
 
 ## Architecture and safety
 
@@ -629,6 +634,25 @@ Metamod loaders, including a native Win32 server, and establish the supported
 Linux libc baseline. Add further typed hooks and scoped capabilities as
 their ABI and lifetime contracts are verified.
 
+### Rustdoc previews
+
+To preview locally, run `cargo doc --locked -p metamod-sdk-rs --no-deps --open`.
+The generated landing page is
+`target/doc/metamod_sdk_rs/index.html` with the default Cargo target directory.
+
+The `Rustdoc` GitHub Actions workflow uploads a `rustdoc-html` artifact on
+successful pushes, pull requests, and manual runs (retained for 14 days).
+Download and extract it, then open `index.html` or
+`metamod_sdk_rs/index.html`. Only default-branch pushes and manual runs on
+that branch deploy the default-feature HTML to GitHub Pages. Pull requests
+and other branches produce downloadable previews without deployment.
+
+To enable hosting, a repository maintainer must select **Settings → Pages →
+Build and deployment → Source → GitHub Actions**. The deployment uses the
+`github-pages` environment and its configured protection rules. The deployment
+job reports the actual site URL; Pages hosting does not publish the crate to
+crates.io or change `publish = false`.
+
 ## Licensing and references
 
 The workspace retains its [AGPL-3.0-only license](../LICENSE) for SDK-authored
@@ -664,9 +688,9 @@ JSONL, JSON, and Markdown reports. See the [runtime audit guide](runtime-audit.m
 for the matrix, isolated staging, and manual console protocol.
 
 The [Ricochet core v2 certificate](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
-records six certified Linux i686 configurations tested on Ubuntu 26.04. It
-lists launcher and engine module hashes separately and applies to the
-recorded binaries and map itinerary. The runtime audit guide also documents
+contains the Ubuntu 26.04 results summarized under [Verify](#verify), with
+separate launcher and engine module hashes. It applies to the recorded
+binaries and map itinerary. The runtime audit guide also documents
 the optional Ubuntu wrapper for reproducing the run with a prebuilt plugin.
 
 See the [memory-safety audit guide](memory-safety-audit.md) for the

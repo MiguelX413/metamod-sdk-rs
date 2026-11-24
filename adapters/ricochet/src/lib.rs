@@ -1,11 +1,11 @@
-//! Stock Ricochet fake-client initialization for explicitly verified hosts.
+//! Fake-client setup for stock Ricochet on the tested hosts.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use metamod_sdk_rs::{FakeClient, FakeClientError, Server};
 use std::ffi::CStr;
 
-/// Adapter for the stock Ricochet GameDLL on a verified deployment.
+/// Stock Ricochet setup. See [`Self::new`] for the required host contract.
 pub struct Ricochet {
     _private: (),
 }

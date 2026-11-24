@@ -7,9 +7,8 @@ pub const MAX_USER_MESSAGE_BYTES: usize = 192;
 
 /// A user-message payload assembled from GoldSrc wire fields.
 ///
-/// Construction is independent of the server and makes no engine calls.
-/// The message's protocol, registered size and recipient must be checked
-/// separately before native transmission. Sending requires an explicit unsafe
+/// Building a payload makes no engine calls. Before sending, check the client
+/// protocol, registered size, and recipient. Native sending requires the unsafe
 /// host opt-in through `Context::message_sender`.
 ///
 /// ```
@@ -72,7 +71,7 @@ impl UserMessagePayload {
         &self.bytes[..self.len]
     }
 
-    /// Verify an expected fixed payload size supplied by the caller.
+    /// Check the encoded length against a fixed-size message schema.
     pub fn validate_fixed_size(&self, expected: usize) -> Result<(), MessagePayloadError> {
         if self.len == expected {
             Ok(())
@@ -109,7 +108,7 @@ impl UserMessagePayload {
         self.append(value.to_bytes_with_nul())
     }
 
-    // Check the whole field before modifying the payload.
+    // A failed field write must leave the existing payload intact.
     fn append(&mut self, field: &[u8]) -> Result<(), MessagePayloadError> {
         if field.len() > MAX_USER_MESSAGE_BYTES - self.len {
             return Err(MessagePayloadError::TooLong);
@@ -238,8 +237,8 @@ impl fmt::Display for StaleMessageRecipient {
 impl std::error::Error for StaleMessageRecipient {}
 
 impl crate::Context<'_> {
-    /// Validate a tracked session and its live edict. No native pointer
-    /// escapes. This checks identity rather than client protocol readiness.
+    /// Check the tracked session and its live edict without exposing a pointer.
+    /// The caller must still establish client protocol readiness.
     pub fn message_recipient(
         &self,
         player: crate::PlayerId,
@@ -291,7 +290,7 @@ impl Drop for SendGuard {
     }
 }
 
-/// Scoped reliable, single-recipient sends under an explicitly established host contract.
+/// Reliable unicast within a callback, subject to the unsafe host contract.
 pub struct MessageSender<'context, 'callback> {
     context: &'context crate::Context<'callback>,
 }

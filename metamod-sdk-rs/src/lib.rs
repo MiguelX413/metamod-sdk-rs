@@ -55,9 +55,8 @@
 //! | Opt into native user-message delivery | [`MessageSender`] and its unsafe host contract |
 //! | Implement game-specific fake-client setup | [`FakeClientSetup`] |
 //!
-//! [`prelude`] collects the common imports. Errors such as [`EngineError`],
-//! [`EntityError`], and [`MessageSendError`] describe unavailable operations and
-//! invalidated identities; native calls can synchronously change lifecycle state.
+//! [`prelude`] collects common imports. Native calls can synchronously change
+//! lifecycle state; check errors for unavailable services or expired identities.
 //!
 //! # Registration without procedural macros
 //!
@@ -230,7 +229,7 @@ macro_rules! cvar_value {
     };
 }
 
-/// Strings remain available to Metamod for the lifetime of the module.
+/// Plugin metadata. Metamod retains access to these strings for the module lifetime.
 pub struct Metadata {
     pub name: &'static CStr,
     pub version: &'static CStr,
@@ -249,9 +248,9 @@ pub trait Plugin: Default + 'static {
         true
     }
 
-    /// Best-effort cleanup when Metamod forwards the game-DLL shutdown hook.
-    /// Cleanup waits for any active plugin callback to return, then the SDK drops
-    /// this instance. Engine access is unavailable.
+    /// Clean up if Metamod forwards the game-DLL shutdown hook.
+    /// Runs after the active plugin callback returns and before the instance is
+    /// dropped. Engine access is unavailable.
     fn shutdown(&mut self) {}
 
     /// Handle a command registered through `Server::register_command`.
@@ -295,10 +294,10 @@ pub trait Plugin: Default + 'static {
 
     fn start_frame(&mut self, _context: &mut Context<'_>) {}
 
-    /// Called after the game DLL activates the map.
+    /// Runs after the game DLL activates the map.
     fn server_activate(&mut self, _context: &mut Context<'_>) {}
 
-    /// Called before the game DLL deactivates the map.
+    /// Runs before the game DLL deactivates the map.
     fn server_deactivate(&mut self, _context: &mut Context<'_>) {}
 
     /// Observes a session after the game DLL puts the player into the server.
@@ -308,7 +307,7 @@ pub trait Plugin: Default + 'static {
     fn player_disconnect(&mut self, _context: &mut Context<'_>, _player: PlayerId) {}
 }
 
-/// Put this once at the root of the plugin's cdylib crate.
+/// Export the Metamod entry points. Invoke once at the root of the plugin crate.
 ///
 /// ```
 /// use metamod_sdk_rs::prelude::*;

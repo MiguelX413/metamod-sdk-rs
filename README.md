@@ -5,12 +5,8 @@ original Half-Life, Counter-Strike 1.6, Team Fortress Classic, and Ricochet.
 Metamod is a plugin loader that lets plugins observe or intercept calls
 between the server engine and a game's rules library (the game DLL).
 
-## Why Rust for GoldSrc?
-
-GoldSrc plugins have traditionally been written in C or C++. This SDK lets
-you keep plugin state in ordinary Rust structs, handle game events through
-typed methods, and call engine services without writing raw pointer code for
-the operations the SDK wraps.
+Keep plugin state in Rust structs, handle game events through typed methods,
+and use engine services through the SDK's wrappers.
 
 ## Features
 
@@ -74,8 +70,6 @@ Follow the [installation steps](docs/sdk-reference.md#install-the-plugin) to loa
 the resulting `libhello_world.so` on a server that already runs Metamod. The
 reference also covers [Windows x86 builds](docs/sdk-reference.md#windows-x86).
 
-## How it works
-
 The SDK keeps plugin state on the server thread and passes a scoped context
 to each hook. The context exposes engine and Metamod services for that
 callback. Low-level Rust bindings are generated at build time from pinned
@@ -83,13 +77,14 @@ upstream headers.
 
 ## Status and limitations
 
-This is a developing SDK with Linux i686 and Windows x86 build and ABI
-verification. The [live Ricochet core v2 results](docs/certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
-cover six recorded Linux i686 configurations. Live coverage varies by feature
-and host. Plugins load at server startup. Stop the server before removing or replacing a plugin. The
-native host must honor the documented [FFI and lifetime contracts](docs/sdk-reference.md#architecture-and-safety).
-User-message payloads can be built and validated. Scoped native sending
-requires an explicit unsafe host opt-in. [Messaging roadmap](docs/api-coverage.md#validated-user-messages)
+Build and ABI checks cover Linux i686 and Windows x86. The [live Ricochet core v2 results](docs/certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
+cover six recorded Linux i686 configurations; live coverage varies by feature
+and host.
+
+Plugins load at server startup. Stop the server before removing or replacing
+a plugin. The native host must honor the documented [FFI and lifetime contracts](docs/sdk-reference.md#architecture-and-safety).
+Native user-message sending requires an explicit unsafe host opt-in; see
+[messaging support and limits](docs/api-coverage.md#validated-user-messages).
 
 ## Documentation
 

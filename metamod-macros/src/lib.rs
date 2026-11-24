@@ -5,7 +5,7 @@ use quote::quote;
 use std::{env, ffi::CString, fs, path::PathBuf};
 use syn::{ImplItem, ItemImpl, LitCStr, LitStr, parse_macro_input};
 
-/// Register a concrete `impl Plugin` and supply its static metadata.
+/// Export a plugin's Metamod entry points and metadata.
 ///
 /// Requires `name`, `version`, and `author`. Pass `cargo` to fill omitted
 /// fields from the package name, version, authors, and repository URL.

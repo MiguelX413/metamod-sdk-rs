@@ -43,8 +43,8 @@ impl<E: Error + 'static> Error for ParsePlayerNumberError<E> {
 pub struct PlayerSlot(NonZeroI32);
 
 impl PlayerSlot {
-    /// Construct a slot from GoldSrc's signed, one-based index. Zero and
-    /// negative indices return `None`. Use `Context::player_at` to check occupancy.
+    /// Zero and negative indices return `None`. A valid index may be vacant;
+    /// use `Context::player_at` to check occupancy.
     ///
     /// ```compile_fail,E0080
     /// use metamod_sdk_rs::PlayerSlot;
@@ -112,8 +112,8 @@ impl From<PlayerSlot> for i32 {
 pub struct PlayerUserId(NonZeroI32);
 
 impl PlayerUserId {
-    /// Construct an ID from GoldSrc's integer value. Zero and negatives
-    /// represent unavailable or invalid IDs.
+    /// Zero and negative values represent unavailable or invalid IDs and
+    /// return `None`.
     ///
     /// ```compile_fail,E0080
     /// use metamod_sdk_rs::PlayerUserId;
@@ -332,8 +332,8 @@ impl<'callback> Context<'callback> {
     /// }
     /// ```
     ///
-    /// Use [`MetamodMessage`] with the strict methods if oversized messages
-    /// should be rejected during conversion.
+    /// To reject oversized messages, convert to [`MetamodMessage`] and use
+    /// the methods that accept it.
     pub fn metamod(&self) -> MetaMod<'_, 'callback> {
         MetaMod { context: self }
     }

@@ -1,8 +1,7 @@
 # API coverage
 
 The pinned headers in `upstream/` are the slot-by-slot inventory. This matrix
-tracks SDK support by interface and safety contract. Update the relevant row
-and verification when a wrapper is added. A generated table exposes its
+tracks SDK support by interface and safety contract. A generated table exposes its
 function pointers through `metamod_sys::raw`; it does not imply that its
 pointees have exposed fields or that the functions are safe to call.
 
@@ -53,10 +52,8 @@ return `EngineError::Unavailable`.
    deferral, rejection, and reconnect on Valve HLDS with classic Metamod
    and on ReHLDS with Metamod-R. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
 2. Finish Win32 verification for [fake-client lifecycle management](#fake-client-lifecycle-management).
-   The Linux i686 stock Ricochet milestone is complete on the tested hosts.
 3. Finish Win32 verification for [validated user messages](#validated-user-messages).
-   The Linux i686 scoped-send milestone is complete for the three recorded
-   stock Ricochet deployments. Then audit movement and physics and expand
+   Then audit movement and physics and expand
    raw payload coverage family by family.
 4. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
    using the existing native fixtures, runtime reports, and certification
@@ -64,56 +61,55 @@ return `EngineError::Unavailable`.
 
 ### Fake-client lifecycle management
 
-1. **Establish host behavior.** Live Linux i686 fixture runs covered
-   allocation, callback order, full slots, partial setup, and slot reuse
-   on Valve HLDS and ReHLDS with classic Metamod. Stock Ricochet setup,
-   queued teardown, and reuse also passed on both. Win32 and other
-   GameDLLs remain open. [Investigation and live results](fake-client-lifecycle.md)
-2. **Expose the supported lifecycle.** Implemented scoped creation through
-   the separate stock Ricochet adapter, `PlayerId` tracking, and queued
-   removal with explicit confirmation. [SDK and adapter results](fake-client-lifecycle.md#rust-sdk-and-ricochet-adapter)
-3. **Verify the lifecycle.** Exercise creation failure, nested callbacks,
-   disconnect, slot reuse, and map transitions with synthetic fixtures.
-   Live Linux i686 tests passed on both engines for a map change with
-   pending removal, same-slot reuse, and confirmed replacement removal.
-   Both engines passed forced reentry during allocation with the test
-   GameDLL and after native setup with stock Ricochet. Neither probe
-   published a stale session. Win32 remains pending. [Live map-change results](fake-client-lifecycle.md#live-map-change-with-a-pending-removal)
+The separate stock Ricochet adapter provides scoped creation, `PlayerId`
+tracking, and queued removal with explicit confirmation.
+[SDK and adapter results](fake-client-lifecycle.md#rust-sdk-and-ricochet-adapter)
 
-The first increment covers creation, identity, and supported teardown.
-Movement, bot AI, and game-specific setup are later work.
+Linux i686 fixtures on Valve HLDS and ReHLDS with classic Metamod covered
+allocation, callback order, full slots, partial setup, and slot reuse.
+Stock Ricochet setup, queued teardown, and reuse passed on both engines.
+Live tests also passed map changes with pending removal, same-slot reuse,
+and confirmed replacement removal. Forced reentry during allocation with
+the test GameDLL and after native setup with stock Ricochet published no
+stale sessions.
+[Investigation](fake-client-lifecycle.md) · [Map-change results](fake-client-lifecycle.md#live-map-change-with-a-pending-removal)
+
+Win32 and other GameDLLs remain unverified. Synthetic fixtures should cover
+creation failure, nested callbacks, disconnect, slot reuse, and map
+transitions. Movement, bot AI, and further game-specific setup remain future work.
 
 ### Validated user messages
 
-1. **Payload construction complete.** `UserMessagePayload` encodes bounded
-   integer and native string fields without native calls. Tests cover
-   exact wire bytes, NUL accounting, fixed-size checks, and failed writes
-   that preserve the existing payload.
-2. **Message and recipient validation complete.** Resolve the registered
-   ID and size through Metamod on the active map. Validate recipients by
-   `PlayerId` and current edict identity. The scoped sender rechecks both
-   at the send boundary.
-3. **Native ownership investigation complete for Linux scope.** Linux i686 probes on Valve HLDS
-   and ReHLDS with classic Metamod confirmed shared message state and
-   interference from nested begin/write/end calls. These reentry probes ran
-   without clients. Separate scoped-send runs verified selected payloads below.
-   The ownership investigation confirmed that plugin engine-table writes
-   bypass classic Metamod observers on both engines. The portable ABI cannot
-   enforce exclusivity. Establish an explicit host integration contract and
-   delivery requirements for each opted-in deployment.
-4. **Linux scoped-send milestone complete.** Explicit unsafe host opt-in permits reliable
-   unicast using prepared payloads and fresh registration/session validation.
-   Nested SDK sends are rejected. Map/shutdown interruption stops native calls
-   without automatic end. Stock Ricochet TextMsg and ScreenFade delivery and
-   exact client-demo payload bytes passed on Valve HLDS and ReHLDS with classic
-   Metamod, and on ReHLDS with Metamod-R, on Linux i686. Win32 sending remains
-   unverified. These were controlled deployments without message-hook plugins.
-   Client protocol and delivery still require review for each deployment.
-   [Live begin/write/end reentry results](user-message-reentry.md)
-5. **Win32 verification pending.** Run the ABI/loader and scoped-send regressions
-   on Windows, then verify reliable delivery and exact client-demo payloads
-   on isolated stock Ricochet servers. Preserve component identities, artifact
-   hashes, and normal shutdown evidence as in the Linux runs.
+`UserMessagePayload` encodes bounded integer and native string fields without
+native calls. Tests cover exact wire bytes, NUL accounting, fixed-size checks,
+and failed writes that preserve the payload. Registration lookup checks the
+native ID and size on the active map; recipient validation checks `PlayerId`
+and current edict identity. The scoped sender repeats these checks at the
+send boundary.
+
+Native sending requires explicit unsafe host opt-in for each deployment.
+It supports reliable unicast, rejects nested SDK sends, and stops native calls
+on observed map changes or shutdown without automatically ending the message.
+The portable ABI cannot enforce exclusive ownership: clientless Linux i686
+probes on Valve HLDS and ReHLDS with classic Metamod showed shared message
+state, nested begin/write/end interference, and plugin engine-table writes
+bypassing classic Metamod observers.
+
+Separate stock Ricochet client tests verified TextMsg and ScreenFade delivery
+and exact client-demo payload bytes on three Linux i686 configurations:
+
+- Valve HLDS with classic Metamod
+- ReHLDS with classic Metamod
+- ReHLDS with Metamod-R
+
+These controlled deployments had no message-hook plugins. Client protocol,
+host integration, and delivery requirements still need review for each
+deployment. [Investigation and recorded results](user-message-reentry.md)
+
+Win32 sending remains unverified. Run the ABI/loader and scoped-send regressions
+on Windows, then check reliable delivery and exact client-demo payloads on
+isolated stock Ricochet servers. Preserve component identities, artifact hashes,
+and normal shutdown evidence as in the Linux runs.
 
 ### Memory Contracts Validation v1
 
@@ -146,8 +142,7 @@ Movement, bot AI, and game-specific setup are later work.
 
 Audited on 2026-11-24 with `missing_docs` warnings enabled for
 `metamod-sdk-rs`, with default features and with `--no-default-features`.
-Both configurations report **124 missing documentation comments** after the
-crate homepage update. This is a lint count, not a percentage of documented
+Both configurations reported **124 missing documentation comments**. This is a lint count, not a percentage of documented
 API or an assessment of documentation quality. Private implementation details,
 `#[doc(hidden)]` internals, generated raw bindings, and the separate macro and
 adapter crates are outside this count. The macro's existing documentation is
@@ -167,11 +162,9 @@ available through its SDK re-export when default features are enabled.
 By item kind: 52 enum variants, 43 fields, 16 methods, seven enums,
 three structs, two associated constants, and one associated function.
 All emitted intra-doc links resolve in both configurations when broken links
-are treated as errors. The crate homepage provides macro and manual
-registration examples, API navigation, native lifecycle constraints, and links
-to the longer guides. Its Rust examples are included in doctest verification.
+are treated as errors. The crate homepage examples are included in doctest verification.
 
-Recommended follow-up order:
+Remaining work:
 
 1. Document error variants and public data fields, including units, valid
    ranges, unavailable operations, and lifecycle invalidation semantics.
@@ -200,21 +193,5 @@ cargo test --locked -p metamod-sdk-rs --doc
 cargo test --locked -p metamod-sdk-rs --no-default-features --doc
 ```
 
-To preview locally, run `cargo doc --locked -p metamod-sdk-rs --no-deps --open`.
-No registry publication is required. The generated landing page is
-`target/doc/metamod_sdk_rs/index.html` with the default Cargo target directory.
-
-
-The `Rustdoc` GitHub Actions workflow uploads a `rustdoc-html` artifact on
-successful pushes, pull requests, and manual runs (retained for 14 days).
-Download and extract it, then open `index.html` or
-`metamod_sdk_rs/index.html`. Only default-branch pushes and manual runs on
-that branch deploy the default-feature HTML to GitHub Pages. Pull requests
-and other branches produce downloadable previews without deployment.
-
-To enable hosting, a repository maintainer must select **Settings → Pages →
-Build and deployment → Source → GitHub Actions**. The deployment uses the
-`github-pages` environment and its configured protection rules. The deployment
-job reports the actual site URL; Pages hosting does not publish the crate to
-crates.io or change `publish = false`. No repository settings are changed by
-adding the workflow itself.
+For local previews and hosted documentation, see the
+[SDK reference](sdk-reference.md#rustdoc-previews).
