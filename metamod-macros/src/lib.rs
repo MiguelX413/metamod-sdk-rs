@@ -152,16 +152,20 @@ fn register(args: TokenStream, implementation: &mut ItemImpl) -> syn::Result<Tok
     };
     let date = date.unwrap_or_else(|| LitCStr::new(c"", span));
     let log_tag = log_tag.map_or_else(|| name.clone(), |value| quote!(#value));
-    implementation.items.push(syn::parse_quote! {
-        const METADATA: ::metamod_sdk_rs::Metadata = ::metamod_sdk_rs::Metadata {
-            name: #name,
-            version: #version,
-            author: #author,
-            date: #date,
-            url: #url,
-            log_tag: #log_tag,
-        };
-    });
+    // Match Plugin trait order so IDE inspections also accept expanded impls.
+    implementation.items.insert(
+        0,
+        syn::parse_quote! {
+            const METADATA: ::metamod_sdk_rs::Metadata = ::metamod_sdk_rs::Metadata {
+                name: #name,
+                version: #version,
+                author: #author,
+                date: #date,
+                url: #url,
+                log_tag: #log_tag,
+            };
+        },
+    );
     // Register the manifest as a rustc input so metadata-only edits rebuild.
     let track_manifest = cargo.then(|| {
         quote! {

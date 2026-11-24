@@ -19,93 +19,10 @@ struct EngineDemo {
     log_tag = "RUSTENGINE"
 )]
 impl Plugin for EngineDemo {
-    const CLIENT_CONNECT_PRE: bool = true;
-
-    fn client_connect(
-        &mut self,
-        ctx: &mut Context<'_>,
-        client: &ClientConnection,
-    ) -> ClientAdmission {
-        if client.name.as_c_str() == c"RustAdmissionReject" {
-            ctx.server().print(c"Rust admission demo: rejected\n");
-            ClientAdmission::Reject(c"Rust admission demo rejected this name.".to_owned())
-        } else {
-            ctx.server().print(c"Rust admission demo: deferred\n");
-            ClientAdmission::Defer
-        }
-    }
-
-    const KEYVALUE_PRE: bool = true;
-
-    fn key_value(&mut self, ctx: &mut Context<'_>, event: &KeyValueEvent) {
-        if event.key.as_c_str() == c"classname" {
-            ctx.server().print(&c_string(format!(
-                "Map classname: {}\n",
-                event.value.to_string_lossy()
-            )));
-        }
-    }
-
-    const LAG_COMPENSATION_PRE: bool = true;
-    const LAG_COMPENSATION_POST: bool = true;
-
-    fn allow_lag_compensation(&mut self, _: &mut Context<'_>) -> HookResult<bool> {
-        HookResult::Handled
-    }
-
-    fn allow_lag_compensation_post(
-        &mut self,
-        _: &mut Context<'_>,
-        original: Option<bool>,
-    ) -> PostHookResult<bool> {
-        match original {
-            Some(_) => PostHookResult::Handled,
-            None => PostHookResult::Ignored,
-        }
-    }
-
     fn initialize(&mut self, ctx: &mut Context<'_>) -> bool {
         ctx.metamod()
             .print_console_trunc(c"Rust Engine Demo loaded");
         true
-    }
-
-    fn start_frame(&mut self, ctx: &mut Context<'_>) {
-        if !self.first_frame_seen {
-            self.first_frame_seen = true;
-            let server = ctx.server();
-            match server.cvar(MESSAGE) {
-                Ok(Some(_)) => {}
-                Ok(None) => {
-                    if let Err(error) =
-                        server.register_cvar(MESSAGE, cvar_value!(c"Hello from Rust!"))
-                    {
-                        server.print(&c_string(format!(
-                            "Could not register rust_hello_message: {error}\n"
-                        )));
-                    }
-                }
-                Err(error) => server.print(&c_string(format!(
-                    "Could not read rust_hello_message: {error}\n"
-                ))),
-            }
-            if let Err(error) = server.register_command(console_name!(c"rust_hello")) {
-                server.print(&c_string(format!(
-                    "Could not register rust_hello: {error}\n"
-                )));
-            }
-            if let Err(error) = server.register_command(console_name!(c"rust_trace")) {
-                server.print(&c_string(format!(
-                    "Could not register rust_trace: {error}\n"
-                )));
-            }
-            if let Err(error) = server.register_command(console_name!(c"rust_entities")) {
-                server.print(&c_string(format!(
-                    "Could not register rust_entities: {error}\n"
-                )));
-            }
-            server.print(c"Rust Engine Demo first frame\n");
-        }
     }
 
     fn server_command(&mut self, ctx: &mut Context<'_>, command: &Command) {
@@ -210,6 +127,90 @@ impl Plugin for EngineDemo {
             Err(error) => server.print(&c_string(format!(
                 "Could not read rust_hello_message: {error}\n"
             ))),
+        }
+    }
+
+    const CLIENT_CONNECT_PRE: bool = true;
+
+    fn client_connect(
+        &mut self,
+        ctx: &mut Context<'_>,
+        client: &ClientConnection,
+    ) -> ClientAdmission {
+        if client.name.as_c_str() == c"RustAdmissionReject" {
+            ctx.server().print(c"Rust admission demo: rejected\n");
+            ClientAdmission::Reject(c"Rust admission demo rejected this name.".to_owned())
+        } else {
+            ctx.server().print(c"Rust admission demo: deferred\n");
+            ClientAdmission::Defer
+        }
+    }
+
+    const LAG_COMPENSATION_PRE: bool = true;
+
+    const LAG_COMPENSATION_POST: bool = true;
+
+    fn allow_lag_compensation(&mut self, _: &mut Context<'_>) -> HookResult<bool> {
+        HookResult::Handled
+    }
+
+    fn allow_lag_compensation_post(
+        &mut self,
+        _: &mut Context<'_>,
+        original: Option<bool>,
+    ) -> PostHookResult<bool> {
+        match original {
+            Some(_) => PostHookResult::Handled,
+            None => PostHookResult::Ignored,
+        }
+    }
+
+    const KEYVALUE_PRE: bool = true;
+
+    fn key_value(&mut self, ctx: &mut Context<'_>, event: &KeyValueEvent) {
+        if event.key.as_c_str() == c"classname" {
+            ctx.server().print(&c_string(format!(
+                "Map classname: {}\n",
+                event.value.to_string_lossy()
+            )));
+        }
+    }
+
+    fn start_frame(&mut self, ctx: &mut Context<'_>) {
+        if !self.first_frame_seen {
+            self.first_frame_seen = true;
+            let server = ctx.server();
+            match server.cvar(MESSAGE) {
+                Ok(Some(_)) => {}
+                Ok(None) => {
+                    if let Err(error) =
+                        server.register_cvar(MESSAGE, cvar_value!(c"Hello from Rust!"))
+                    {
+                        server.print(&c_string(format!(
+                            "Could not register rust_hello_message: {error}\n"
+                        )));
+                    }
+                }
+                Err(error) => server.print(&c_string(format!(
+                    "Could not read rust_hello_message: {error}\n"
+                ))),
+            }
+            if let Err(error) = server.register_command(console_name!(c"rust_hello")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_hello: {error}\n"
+                )));
+            }
+            if let Err(error) = server.register_command(console_name!(c"rust_trace")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_trace: {error}\n"
+                )));
+            }
+            if let Err(error) = server.register_command(console_name!(c"rust_entities")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_entities: {error}\n"
+                )));
+            }
+            server.print(c"Rust Engine Demo first frame\n");
         }
     }
 
