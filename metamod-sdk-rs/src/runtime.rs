@@ -1,10 +1,11 @@
+use crate::bounded_cstr::BoundedCStr;
 use metamod_sys::{
     Log, PluginInfo,
     raw::{MetamodGetUserMsgID, MetamodServerPrint},
 };
 use std::{
     error::Error,
-    ffi::CStr,
+    ffi::{CStr, CString},
     fmt,
     marker::PhantomData,
     num::{NonZeroI32, NonZeroU64, ParseIntError},
@@ -238,8 +239,8 @@ const MAX_UTILITY_MESSAGE: usize = 1021;
 
 /// A C string validated for Metamod's logging and console utilities.
 #[repr(transparent)]
-#[derive(Debug)]
-pub struct MetamodMessage(CStr);
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MetamodMessage(BoundedCStr<MAX_UTILITY_MESSAGE>);
 
 /// A message exceeded the Metamod utility payload limit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -260,22 +261,88 @@ impl MetamodMessage {
     /// Maximum payload length in bytes, excluding the NUL terminator.
     pub const MAX_LEN: usize = MAX_UTILITY_MESSAGE;
 
+    /// Validate without copying or truncating the input.
+    pub const fn new(message: &CStr) -> Result<&Self, MetamodMessageTooLong> {
+        let bounded = match BoundedCStr::<MAX_UTILITY_MESSAGE>::new(message) {
+            Ok(value) => value,
+            Err(_) => return Err(MetamodMessageTooLong),
+        };
+        // SAFETY: MetamodMessage is transparent over BoundedCStr. Validation,
+        // pointer metadata, and the original borrow lifetime are preserved.
+        Ok(unsafe { &*(bounded as *const BoundedCStr<MAX_UTILITY_MESSAGE> as *const Self) })
+    }
+
     /// The validated C string.
-    pub fn as_c_str(&self) -> &CStr {
-        &self.0
+    pub const fn as_c_str(&self) -> &CStr {
+        self.0.as_c_str()
+    }
+
+    fn from_bounded(value: Box<BoundedCStr<MAX_UTILITY_MESSAGE>>) -> Box<Self> {
+        // SAFETY: The transparent wrapper has the same layout and pointer
+        // metadata as its validated field. Ownership transfers exactly once.
+        unsafe { Box::from_raw(Box::into_raw(value) as *mut Self) }
     }
 }
 
 impl<'a> TryFrom<&'a CStr> for &'a MetamodMessage {
     type Error = MetamodMessageTooLong;
-
     fn try_from(message: &'a CStr) -> Result<Self, Self::Error> {
-        if message.to_bytes().len() > MetamodMessage::MAX_LEN {
-            return Err(MetamodMessageTooLong);
-        }
-        // SAFETY: The transparent wrapper preserves CStr's layout and pointer
-        // metadata. Its length invariant holds, and the borrow is unchanged.
-        Ok(unsafe { &*(message as *const CStr as *const MetamodMessage) })
+        MetamodMessage::new(message)
+    }
+}
+impl AsRef<CStr> for MetamodMessage {
+    fn as_ref(&self) -> &CStr {
+        self.as_c_str()
+    }
+}
+impl ToOwned for MetamodMessage {
+    type Owned = Box<Self>;
+    fn to_owned(&self) -> Box<Self> {
+        Self::from_bounded(self.0.to_owned().into())
+    }
+}
+impl From<&MetamodMessage> for Box<MetamodMessage> {
+    fn from(value: &MetamodMessage) -> Self {
+        value.to_owned()
+    }
+}
+impl Clone for Box<MetamodMessage> {
+    fn clone(&self) -> Self {
+        (**self).to_owned()
+    }
+}
+impl TryFrom<&CStr> for Box<MetamodMessage> {
+    type Error = MetamodMessageTooLong;
+    fn try_from(value: &CStr) -> Result<Self, Self::Error> {
+        MetamodMessage::new(value).map(ToOwned::to_owned)
+    }
+}
+impl TryFrom<Box<CStr>> for Box<MetamodMessage> {
+    type Error = MetamodMessageTooLong;
+    fn try_from(value: Box<CStr>) -> Result<Self, Self::Error> {
+        Box::try_from(value)
+            .map(MetamodMessage::from_bounded)
+            .map_err(|_| MetamodMessageTooLong)
+    }
+}
+impl TryFrom<CString> for Box<MetamodMessage> {
+    type Error = MetamodMessageTooLong;
+    fn try_from(value: CString) -> Result<Self, Self::Error> {
+        value.into_boxed_c_str().try_into()
+    }
+}
+impl From<Box<MetamodMessage>> for Box<CStr> {
+    fn from(value: Box<MetamodMessage>) -> Self {
+        // SAFETY: The transparent wrapper has its field's layout and metadata;
+        // consuming the box leaves no alias to the transferred allocation.
+        let bounded =
+            unsafe { Box::from_raw(Box::into_raw(value) as *mut BoundedCStr<MAX_UTILITY_MESSAGE>) };
+        bounded.into()
+    }
+}
+impl From<Box<MetamodMessage>> for CString {
+    fn from(value: Box<MetamodMessage>) -> Self {
+        Box::<CStr>::from(value).into_c_string()
     }
 }
 
@@ -288,15 +355,10 @@ fn utility_message<'a>(
     message: &'a CStr,
     buffer: &'a mut [u8; MAX_UTILITY_MESSAGE + 1],
 ) -> &'a MetamodMessage {
-    if let Ok(message) = <&MetamodMessage>::try_from(message) {
-        return message;
-    }
-    buffer[..MAX_UTILITY_MESSAGE].copy_from_slice(&message.to_bytes()[..MAX_UTILITY_MESSAGE]);
-    buffer[MAX_UTILITY_MESSAGE] = 0;
-    CStr::from_bytes_with_nul(buffer)
-        .expect("a C string payload contains no NUL")
+    BoundedCStr::<MAX_UTILITY_MESSAGE>::borrow_trunc(message, buffer)
+        .as_c_str()
         .try_into()
-        .expect("the truncated message fits the utility limit")
+        .expect("truncated message fits")
 }
 
 impl<'callback> Context<'callback> {
@@ -375,15 +437,23 @@ impl<'callback> Context<'callback> {
         self.player_at(player.slot()) == Some(player)
     }
 
-    /// Write a message through Metamod's server log utility when available.
-    /// Messages exceeding 1,021 bytes are truncated to fit classic Metamod.
-    pub fn log(&self, message: &CStr) {
+    /// Log a validated message through Metamod when available.
+    pub fn log(&self, message: &MetamodMessage) {
+        self.metamod().log(message);
+    }
+
+    /// Print a validated message through Metamod when available.
+    pub fn print_console(&self, message: &MetamodMessage) {
+        self.metamod().print_console(message);
+    }
+
+    /// Log native bytes, truncating at 1,021 payload bytes if necessary.
+    pub fn log_trunc(&self, message: &CStr) {
         self.metamod().log_trunc(message);
     }
 
-    /// Print directly to the server console through Metamod.
-    /// Messages exceeding 1,021 bytes are truncated to fit classic Metamod.
-    pub fn print_console(&self, message: &CStr) {
+    /// Print native bytes, truncating at 1,021 payload bytes if necessary.
+    pub fn print_console_trunc(&self, message: &CStr) {
         self.metamod().print_console_trunc(message);
     }
 }
@@ -468,6 +538,39 @@ mod tests {
         assert_eq!(
             <&MetamodMessage>::try_from(input.as_c_str()).unwrap_err(),
             MetamodMessageTooLong
+        );
+    }
+
+    #[test]
+    fn owned_metamod_messages_validate_and_reuse_allocations() {
+        for len in [0, MetamodMessage::MAX_LEN] {
+            let input = CString::new(vec![0xff; len]).unwrap();
+            let pointer = input.as_ptr();
+            let owned: Box<MetamodMessage> = input.try_into().unwrap();
+            assert_eq!(owned.as_c_str().as_ptr(), pointer);
+            assert_eq!(owned.clone(), owned);
+            let copied: Box<MetamodMessage> = owned.as_ref().into();
+            assert_eq!(copied, owned);
+            assert_ne!(copied.as_c_str().as_ptr(), pointer);
+            let boxed: Box<CStr> = owned.into();
+            assert_eq!(boxed.as_ptr(), pointer);
+            let owned: Box<MetamodMessage> = boxed.try_into().unwrap();
+            assert_eq!(owned.as_c_str().as_ptr(), pointer);
+            let string: CString = owned.into();
+            assert_eq!(string.as_ptr(), pointer);
+        }
+        let long = CString::new(vec![b'x'; MetamodMessage::MAX_LEN + 1]).unwrap();
+        assert_eq!(
+            Box::<MetamodMessage>::try_from(long.as_c_str()),
+            Err(MetamodMessageTooLong)
+        );
+        assert_eq!(
+            Box::<MetamodMessage>::try_from(long.clone()),
+            Err(MetamodMessageTooLong)
+        );
+        assert_eq!(
+            Box::<MetamodMessage>::try_from(long.into_boxed_c_str()),
+            Err(MetamodMessageTooLong)
         );
     }
 

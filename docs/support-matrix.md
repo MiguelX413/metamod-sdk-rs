@@ -14,7 +14,7 @@ The [release roadmap](roadmap.md) lists the work required before release.
 | Player identity and information | Core | Distinct slot, native user ID, and tracked session types; owned information snapshots. Tracking covers observed joins. Revalidate saved sessions. |
 | Entity discovery and snapshots | Core | Map epochs and native serials, bounded index lookup, owned common fields and strings. No general entity mutation or GameDLL-private data access. |
 | Line and standard hull traces | Core | Finite endpoints, validated skip identity, owned results. A missing hit handle does not imply no collision. |
-| Admission, keyvalue, and lag-compensation hooks | Core API; host validation required | Explicit hook opt-ins, owned observations, typed synchronous decisions. Native fixture coverage does not establish live behavior on every host. |
+| Admission, keyvalue, and lag-compensation hooks | Core API; host validation required | Explicit hook opt-ins, owned observations, typed synchronous decisions, and validated `ClientRejectReason` values. Native fixture coverage does not establish live behavior on every host. |
 | User-message payload construction | Core | Rust-only byte encoding and size validation, including the 192-byte payload budget. No implied schema correctness. |
 | Message registration and recipient lookup | Core | Active-map observations; registration and session validity can expire across native calls. |
 | Native message sending | Experimental, explicit unsafe opt-in | Reliable unicast only. Caller establishes idle entry, exclusive native ownership, recipient lifetime/readiness, and client protocol correctness. Byte-wise writers must be acceptable to native hooks. |

@@ -109,8 +109,23 @@ a UTF-8 sequence.
 If you need to reject oversized messages, convert with
 `let message: &MetamodMessage = c"Ready".try_into()?;` and pass the validated
 borrow to `ctx.metamod().print_console(message)` or `ctx.metamod().log(message)`.
-The existing `Context::print_console` and `Context::log` methods forward to
-those truncating methods.
+`ctx.print_console(message)` and `ctx.log(message)` also require a validated
+`&MetamodMessage`. To truncate deliberately, use their `print_console_trunc`
+and `log_trunc` counterparts. `MetamodMessage::new(&CStr)` validates without
+copying. `Box<MetamodMessage>` accepts fallible conversions from `&CStr`,
+`CString`, and `Box<CStr>`; owned transfers reuse storage and conversions back
+to `Box<CStr>` or `CString` preserve bytes.
+
+### Migrating unbounded messages
+
+Convert owned rejection reasons with `ClientRejectReason::try_from(reason)`
+before returning `ClientAdmission::Reject`. Handle validation errors explicitly
+inside `client_connect`, which returns `ClientAdmission` rather than `Result`.
+Use `ClientAdmission::reject_trunc(&reason)` only when truncation is intended.
+`Context::log` and `Context::print_console` now require
+`&MetamodMessage`, matching `MetaMod`. Rename old calls to `log_trunc` or
+`print_console_trunc` only when truncation is intended. These are Rust API
+changes; native callback signatures and result handling are unchanged.
 
 ## Engine services
 
@@ -430,10 +445,15 @@ These are owned native strings. The hook runs before the GameDLL processes
 the connection, so it has no established `PlayerId`.
 
 `ClientAdmission::Defer` leaves the decision to the GameDLL and other
-plugins. `ClientAdmission::Reject(c"Reason".to_owned())` returns false
-with `MRES_SUPERCEDE` and supplies a NUL-terminated reason. GoldSrc's
-128-byte output buffer limits the reason to 127 bytes, so truncation can
-split a UTF-8 character. Nested admission, missing or unterminated inputs,
+plugins. `ClientAdmission::Reject` takes an owned `ClientRejectReason`, limited
+to 127 payload bytes plus its terminating NUL in GoldSrc's 128-byte buffer.
+`ClientAdmission::reject(&CStr)` returns a fallible decision; alternatively,
+construct the reason with `ClientRejectReason::new(&CStr)` or `try_into()`.
+Oversized reasons return
+`ClientRejectReasonTooLong`; ordinary construction never truncates.
+`CString` and `Box<CStr>` conversions reuse owned storage. If truncation is
+intended, call `ClientAdmission::reject_trunc(&CStr)`, which cuts by bytes
+and can split UTF-8. Nested admission, missing or unterminated inputs,
 and plugin panics
 fall back to `MRES_IGNORED`. The host must supply readable inputs and keep
 the output buffer writable until the hook returns.

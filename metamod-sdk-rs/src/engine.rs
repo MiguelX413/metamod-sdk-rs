@@ -447,7 +447,7 @@ pub struct CvarValue(CStr);
 impl CvarValue {
     /// Check the CVar byte limit without allocating.
     pub const fn new(value: &CStr) -> Result<&Self, EngineError> {
-        if value.to_bytes().len() > 1023 {
+        if crate::bounded_cstr::BoundedCStr::<1023>::new(value).is_err() {
             return Err(EngineError::InvalidValue);
         }
         // SAFETY: The length is validated, and the transparent wrapper

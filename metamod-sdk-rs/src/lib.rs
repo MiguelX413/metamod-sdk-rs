@@ -146,11 +146,15 @@ fn ignore_intentionally_retained<T: ?Sized>(allocation: &T) {
     unsafe { __lsan_ignore_object(std::ptr::from_ref(allocation).cast()) };
 }
 
+mod bounded_cstr;
 mod fake_client;
 pub use fake_client::{FakeClient, FakeClientError, FakeClientSetup, FakeClientState};
 
 pub use engine::{Command, ConsoleName, CvarValue, EngineError, OwnedConsoleName, PlayerInfo};
-pub use hooks::{ClientAdmission, ClientConnection, HookResult, KeyValueEvent, PostHookResult};
+pub use hooks::{
+    ClientAdmission, ClientConnection, ClientRejectReason, ClientRejectReasonTooLong, HookResult,
+    KeyValueEvent, PostHookResult,
+};
 pub use message::{
     MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError, MessageRecipient,
     MessageSendError, MessageSender, RegisteredUserMessage, StaleMessageRecipient,
@@ -174,14 +178,15 @@ pub mod prelude {
     #[cfg(feature = "macros")]
     pub use crate::metamod_plugin;
     pub use crate::{
-        ClientAdmission, ClientConnection, Command, ConsoleName, Context, CvarValue, EngineError,
-        EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial,
-        HookResult, Hull, KeyValueEvent, MAX_USER_MESSAGE_BYTES, MessageLookupError,
-        MessagePayloadError, MessageRecipient, MessageSendError, MessageSender, MetaMod, Metadata,
-        MetamodMessage, MetamodMessageTooLong, OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot,
-        PlayerUserId, Plugin, PostHookResult, RegisteredUserMessage, Server, StaleMessageRecipient,
-        TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
-        UserMessagePayload, UserMessageSize, console_name, cvar_value, export_plugin,
+        ClientAdmission, ClientConnection, ClientRejectReason, ClientRejectReasonTooLong, Command,
+        ConsoleName, Context, CvarValue, EngineError, EntityError, EntityHandle, EntityInfo,
+        EntityKeyValues, EntityKind, EntitySpatial, HookResult, Hull, KeyValueEvent,
+        MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError, MessageRecipient,
+        MessageSendError, MessageSender, MetaMod, Metadata, MetamodMessage, MetamodMessageTooLong,
+        OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId, Plugin, PostHookResult,
+        RegisteredUserMessage, Server, StaleMessageRecipient, TraceError, TraceMonsters,
+        TraceOptions, TracePlane, TraceResult, TraceSegment, UserMessagePayload, UserMessageSize,
+        console_name, cvar_value, export_plugin,
     };
 }
 

@@ -14,12 +14,14 @@ fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
             assert_eq!(client.address.as_c_str(), c"loopback");
             match client.name.as_bytes() {
                 b"defer" => ClientAdmission::Defer,
+                b"empty" => ClientAdmission::reject(c"").unwrap(),
+                b"raw" => ClientAdmission::reject(c"\xff").unwrap(),
                 b"panic" => panic!("admission panic"),
                 b"exact" => {
-                    ClientAdmission::Reject(std::ffi::CString::new(vec![b'x'; 127]).unwrap())
+                    ClientAdmission::Reject(std::ffi::CString::new(vec![b'x'; 127]).unwrap().try_into().unwrap())
                 }
-                b"utf8" => ClientAdmission::Reject(
-                    std::ffi::CString::new(format!("{}é", "x".repeat(126))).unwrap(),
+                b"utf8" => ClientAdmission::reject_trunc(
+                    &std::ffi::CString::new(format!("{}é", "x".repeat(126))).unwrap(),
                 ),
                 _ => {
                     let mut nested = [42; 128];
@@ -34,7 +36,7 @@ fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
                     };
                     assert_eq!(result, 1);
                     assert_eq!(nested, [42; 128]);
-                    ClientAdmission::Reject(std::ffi::CString::new(vec![b'x'; 200]).unwrap())
+                    ClientAdmission::reject_trunc(&std::ffi::CString::new(vec![b'x'; 200]).unwrap())
                 }
             }
         }
@@ -59,6 +61,8 @@ fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
             c"reject".as_ptr(),
             c"exact".as_ptr(),
             c"utf8".as_ptr(),
+            c"empty".as_ptr(),
+            c"raw".as_ptr(),
             c"panic".as_ptr(),
             c"reject".as_ptr(),
         ]
@@ -77,6 +81,15 @@ fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
                 assert!(output[..126].iter().all(|&byte| byte == b'x' as c_char));
                 assert_eq!(output[126] as u8, if step == 4 { 0xc3 } else { b'x' });
                 assert_eq!(output[127..], [0, 42]);
+            } else if step == 5 {
+                assert_eq!((result, globals.mres), (0, MRES_SUPERCEDE));
+                assert_eq!(output[0], 0);
+                assert_eq!(output[1..], [42; 128]);
+            } else if step == 6 {
+                assert_eq!((result, globals.mres), (0, MRES_SUPERCEDE));
+                assert_eq!(output[0] as u8, 0xff);
+                assert_eq!(output[1], 0);
+                assert_eq!(output[2..], [42; 127]);
             } else {
                 assert_eq!((result, globals.mres), (1, MRES_IGNORED));
                 assert_eq!(output, [42; 129]);
@@ -105,7 +118,7 @@ fn client_admission_discards_rejection_after_nested_shutdown() {
             // SAFETY: This mock keeps the attached hook globals live.
             unsafe { game_shutdown::<Self>() };
             assert!(!DROPPED.get());
-            ClientAdmission::Reject(c"too late".to_owned())
+            ClientAdmission::Reject(c"too late".try_into().unwrap())
         }
     }
 

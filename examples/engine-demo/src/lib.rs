@@ -43,7 +43,11 @@ impl Plugin for EngineDemo {
     ) -> ClientAdmission {
         if client.name.as_c_str() == c"RustAdmissionReject" {
             ctx.server().print(c"Rust admission demo: rejected\n");
-            ClientAdmission::Reject(c"Rust admission demo rejected this name.".to_owned())
+            ClientAdmission::Reject(
+                c"Rust admission demo rejected this name."
+                    .try_into()
+                    .expect("short reason"),
+            )
         } else {
             ctx.server().print(c"Rust admission demo: deferred\n");
             ClientAdmission::Defer

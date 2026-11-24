@@ -129,6 +129,12 @@ def markdown(report):
 
 
 MIRI_SCENARIOS = (
+    "bounded_cstr::tests::borrowed_and_owned_preserve_bounds_and_allocations",
+    "bounded_cstr::tests::boxed_traits_keep_c_string_equality_and_hashing",
+    "bounded_cstr::tests::owned_strings_round_trip_through_boxed_views_without_copying",
+    "bounded_cstr::tests::explicit_truncation_counts_bytes_and_keeps_a_terminator",
+    "runtime::tests::owned_metamod_messages_validate_and_reuse_allocations",
+    "hooks::tests::rejection_reasons_require_explicit_truncation",
     "message::tests::send_guard_releases_after_rust_unwind",
     "__ffi::tests::message_send_preserves_bytes_and_rejects_nested_and_interrupted_sends",
     "__ffi::tests::client_admission_is_synchronous_and_bounds_the_rejection_buffer",
@@ -153,7 +159,7 @@ def miri_evidence(repo, output):
                                               "metamod-sys/src/lib.rs"))
     record = {
         "tool": "Miri",
-        "artifacts": {str(path.relative_to(repo)): hashlib.sha256(path.read_bytes()).hexdigest()
+        "artifacts": {path.relative_to(repo).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in artifacts},
         "scenarios": [],
     }

@@ -77,8 +77,9 @@ consumer's chosen registration path.
   after native calls. Owned snapshots remain readable but do not pin entities
   or guarantee that their contents are still current.
 - Use bytes or handle UTF-8 conversion failure for native strings. Respect
-  documented byte limits and truncation. Null/alignment/length checks cannot
-  establish arbitrary foreign pointer validity.
+  documented byte limits. `MetamodMessage` and `ClientRejectReason` reject
+  overflow; use explicitly named `_trunc` methods only when intended.
+  Null/alignment/length checks cannot establish arbitrary foreign pointer validity.
 - Keep startup-only loading, `PT_NEVER`, detach refusal, and resident native
   registrations. Stop the server before replacing/removing the library.
   Shutdown delivery is optional; cleanup cannot rely on it always arriving.

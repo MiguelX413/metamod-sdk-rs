@@ -40,13 +40,12 @@ pub(super) unsafe extern "C" fn client_connect<P: Plugin>(
         }
     });
     if let Some(reason) = reason {
-        let bytes = reason.as_bytes();
-        let len = bytes.len().min(127);
+        let bytes = reason.as_c_str().to_bytes_with_nul();
         // SAFETY: The host supplies a writable 128-byte buffer through the
-        // entire hook, including native reentry. The source is Rust-owned.
+        // entire hook, including native reentry. The owned reason validates
+        // at most 127 payload bytes plus its NUL; no truncation occurs here.
         unsafe {
-            ptr::copy_nonoverlapping(bytes.as_ptr().cast(), reject, len);
-            reject.add(len).write(0);
+            ptr::copy_nonoverlapping(bytes.as_ptr().cast(), reject, bytes.len());
         }
         return 0;
     }
