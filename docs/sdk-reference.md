@@ -390,6 +390,38 @@ Stop the process normally with `quit`. These steps exercise a real host's
 loader, callbacks, and native buffers. They cannot establish shutdown
 delivery or pointer validity in every host and GameDLL combination.
 
+### Player tracker
+
+[Player tracker](../examples/player-tracker/src/lib.rs) logs joins and disconnects
+and retains a selected `PlayerId` across commands. Build it with:
+
+```sh
+cargo build --locked --release --target i686-unknown-linux-gnu -p player-tracker
+```
+
+Install `libplayer_tracker.so` using the [plugin installation steps](#install-the-plugin)
+with `linux addons/rust-player-tracker/libplayer_tracker.so` in `plugins.ini`.
+For Windows x86, build with `--target i686-pc-windows-msvc` and use
+`win32 addons/rust-player-tracker/player_tracker.dll`. The display name is
+`Rust Player Tracker`.
+
+From the server console:
+
+- `rust_sessions` lists slots whose current sessions the plugin observed.
+- `rust_watch 1` selects the session currently tracked in slot 1. A failed
+  selection leaves the previous selection intact.
+- `rust_watched` checks the saved session and prints its native user ID when
+  available. It reports an expired selection after disconnect, even if another
+  client has joined the same slot. Run `rust_watch` again to select that client.
+
+Map deactivation clears the list and selection; commands remain registered.
+Output reflects the session at lookup time and does not keep it alive.
+
+To try the identity handling, connect a client, select its slot, disconnect,
+and run `rust_watched`. Reconnect and check again before selecting the new
+session. Use an isolated server. This example has not been tested live; see the
+[host support matrix](support-matrix.md#host-evidence).
+
 ### Client admission
 
 Set `Plugin::CLIENT_CONNECT_PRE` to `true` and implement

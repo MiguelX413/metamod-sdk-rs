@@ -90,7 +90,7 @@ Native user-message sending requires an explicit unsafe host opt-in; see
 
 - [API and host support](docs/support-matrix.md) for proposed release scope and recorded host evidence
 - [SDK reference](docs/sdk-reference.md) for setup, API usage, and native safety contracts
-- [Hello world](examples/hello-world/src/lib.rs) and [engine demo](examples/engine-demo/src/lib.rs)
+- [Hello world](examples/hello-world/src/lib.rs), [engine demo](examples/engine-demo/src/lib.rs), and [player tracker](examples/player-tracker/src/lib.rs)
 - [Release roadmap](docs/roadmap.md) for release gates, feature expansion, and validation
 - [API coverage](docs/api-coverage.md) for the current interface inventory
 - [Runtime auditing](docs/runtime-audit.md) and [memory-safety verification](docs/memory-safety-audit.md)

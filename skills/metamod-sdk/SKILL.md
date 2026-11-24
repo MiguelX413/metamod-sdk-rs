@@ -42,7 +42,7 @@ Use the relevant row; there is no need to read every example.
 | --- | --- |
 | Start a plugin, metadata, manual registration | [crate Rustdoc and `Plugin`](../../metamod-sdk-rs/src/lib.rs), [hello-world](../../examples/hello-world/src/lib.rs) |
 | Commands, CVars, validated names, player information | [engine Rustdoc](../../metamod-sdk-rs/src/engine.rs), [engine-demo](../../examples/engine-demo/src/lib.rs) |
-| Retain a player selection, console/log output | [runtime Rustdoc](../../metamod-sdk-rs/src/runtime.rs) |
+| Retain a player selection, console/log output | [runtime Rustdoc](../../metamod-sdk-rs/src/runtime.rs), [player tracker](../../examples/player-tracker/src/lib.rs) |
 | Entity discovery, owned snapshots, line/hull traces | [trace Rustdoc](../../metamod-sdk-rs/src/trace.rs), engine-demo command handlers |
 | Admission, keyvalues, synchronous pre/post decisions | [hook Rustdoc](../../metamod-sdk-rs/src/hooks.rs), `Plugin` opt-ins, engine-demo |
 | Build or validate user-message bytes | [message Rustdoc](../../metamod-sdk-rs/src/message.rs) |

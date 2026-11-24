@@ -1,0 +1,22 @@
+[package]
+name = "player-tracker"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Example GoldSrc Metamod plugin tracking player sessions across callbacks"
+readme.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["goldsrc", "metamod", "half-life", "example"]
+categories = ["game-development"]
+publish = false
+
+[package.metadata.metamod]
+name = "Rust Player Tracker"
+log_tag = "RUSTPLAYERS"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+metamod-sdk-rs = { path = "../../metamod-sdk-rs" }
