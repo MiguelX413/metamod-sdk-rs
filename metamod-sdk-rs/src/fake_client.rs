@@ -16,30 +16,49 @@ pub struct FakeClient {
 }
 
 impl FakeClient {
+    /// Return the original tracked session ID. Revalidate it before use;
+    /// retaining or cloning this handle does not keep the session alive.
     pub fn player(&self) -> PlayerId {
         self.player
     }
 
+    /// Return the last lifecycle state observed by the SDK. This reads cached
+    /// bookkeeping and does not query the engine or force removal confirmation.
     pub fn state(&self) -> FakeClientState {
         self.state.get()
     }
 }
 
+/// Lifecycle state shared by clones of a [`FakeClient`] handle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FakeClientState {
+    /// Setup completed and no removal has been queued by this handle.
+    /// Use session validation for a fresh engine observation.
     Active,
+    /// A kick command was queued; native removal has not yet been confirmed.
     RemovalQueued,
+    /// A disconnect and subsequent native identity check confirmed removal.
     Removed,
+    /// Tracking was invalidated, for example by map retirement or slot replacement.
+    /// This does not confirm that a queued removal completed.
     Invalidated,
 }
 
+/// Fake-client creation or queued removal could not complete as requested.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FakeClientError {
+    /// The requested name is invalid for the game-specific adapter.
+    /// The core allocator currently leaves name validation to adapters.
     InvalidName,
+    /// Required engine/GameDLL callbacks or lifecycle state are unavailable,
+    /// or another creation is already in progress.
     Unavailable,
+    /// The native allocation callback returned null without an observed lifecycle change.
     AllocationFailed,
     /// Allocation may have succeeded. The SDK cannot safely roll it back.
     SetupIncomplete,
+    /// The handle is no longer an active tracked client eligible for removal.
+    /// A removal already queued through this handle is also not active.
     NotActive,
 }
 
@@ -288,6 +307,24 @@ impl Server<'_, '_> {
     }
 
     /// Queue teardown for this session. Completion is reported by `FakeClient::state`.
+    ///
+    /// Success only queues a command; it does not mean the client has left.
+    /// A later disconnect plus native identity confirmation produces
+    /// [`FakeClientState::Removed`]. Map changes and replacement can instead
+    /// produce [`FakeClientState::Invalidated`]. Dropping the handle does not
+    /// request removal or cancel a queued command.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, FakeClient, FakeClientError, FakeClientState};
+    ///
+    /// fn request_removal(ctx: &Context<'_>, client: &FakeClient) -> Result<(), FakeClientError> {
+    ///     if client.state() == FakeClientState::Active {
+    ///         ctx.server().request_fake_client_removal(client)?;
+    ///     }
+    ///     // Inspect state on a later callback to observe completion or invalidation.
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn request_fake_client_removal(&self, client: &FakeClient) -> Result<(), FakeClientError> {
         use FakeClientError::*;
         let queue = __ffi::engine()

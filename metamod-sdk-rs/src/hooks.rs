@@ -4,9 +4,14 @@
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum HookResult<T> {
     #[default]
+    /// Leave the decision and return value to the GameDLL and other plugins.
     Ignored,
+    /// Report that the hook was handled without replacing the return value.
     Handled,
+    /// Offer a replacement return value while allowing the GameDLL call.
+    /// Metamod combines this decision with those from other plugins.
     Override(T),
+    /// Request that Metamod skip the GameDLL call and use this return value.
     Supercede(T),
 }
 
@@ -14,8 +19,11 @@ pub enum HookResult<T> {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum PostHookResult<T> {
     #[default]
+    /// Leave the result unchanged by this plugin.
     Ignored,
+    /// Report handling without supplying a replacement return value.
     Handled,
+    /// Offer a replacement for the result after the original dispatch.
     Override(T),
 }
 
@@ -24,13 +32,17 @@ pub enum PostHookResult<T> {
 pub struct KeyValueEvent {
     /// The native classname, if supplied. It may be absent early in loading.
     pub classname: Option<std::ffi::CString>,
+    /// Native key bytes copied before GameDLL dispatch.
     pub key: std::ffi::CString,
+    /// Native value bytes copied before GameDLL dispatch.
     pub value: std::ffi::CString,
 }
 
 /// Owned connection inputs supplied by GoldSrc before a player session exists.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClientConnection {
+    /// Client-supplied display-name bytes; a tracked player session does not
+    /// yet exist at this admission stage.
     pub name: std::ffi::CString,
     /// Native address as supplied by the engine, including any port.
     pub address: std::ffi::CString,

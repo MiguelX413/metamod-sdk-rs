@@ -145,20 +145,39 @@ impl Command {
 /// Owned engine information for a session validated during the lookup.
 #[derive(Clone, Debug)]
 pub struct PlayerInfo {
+    /// Tracked session validated during this lookup; it can become stale later.
     pub id: PlayerId,
+    /// Positive native user ID, when the engine supplies one. This is distinct
+    /// from the SDK session identity in [`Self::id`].
     pub user_id: Option<PlayerUserId>,
+    /// Copied authentication ID bytes, if available. This is a native string,
+    /// not a guarantee of authentication, uniqueness, or UTF-8 encoding.
     pub auth_id: Option<CString>,
 }
 
+/// An engine service, console registration, or input validation failed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EngineError {
+    /// Engine access or a required callback is absent, shutdown has started,
+    /// or observed reentry invalidated the operation.
     Unavailable,
+    /// Registration was attempted outside an attached plugin callback.
     RegistrationUnavailable,
+    /// A console name is empty, too long, contains unsupported bytes, or
+    /// is not lowercase where a borrowed name is required.
     InvalidName,
+    /// A CVar value exceeds the 1023-byte limit, excluding its terminal NUL.
     InvalidValue,
+    /// The console name conflicts with a registration known to the SDK or engine.
+    /// Native command collisions cannot all be detected by the engine ABI.
     AlreadyRegistered,
+    /// A write targeted a CVar that the engine does not report as registered.
     UnknownCvar,
+    /// The engine did not confirm a CVar registration, or a reserved CVar
+    /// name was encountered again after an earlier attempt.
     RegistrationRejected,
+    /// The bounded console-name registry or resident CVar record pool is full.
+    /// Attempts that already exposed storage to native code can consume capacity.
     RegistrationLimit,
 }
 
@@ -572,6 +591,21 @@ fn reserve_name<T>(
 
 impl Server<'_, '_> {
     /// Register a server CVar from an attached callback. Use a plugin-specific name.
+    ///
+    /// Register once from an attached callback such as [`crate::Plugin::start_frame`],
+    /// using a flag to avoid repeated attempts. Registration is unavailable in
+    /// [`crate::Plugin::initialize`]. Registration
+    /// consumes bounded resident storage, including attempts that hand storage
+    /// to native code before failing. Changing maps does not require registration
+    /// again; successful registration is kept until the server stops.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, EngineError, console_name, cvar_value};
+    ///
+    /// fn register(ctx: &Context<'_>) -> Result<(), EngineError> {
+    ///     ctx.server().register_cvar(console_name!(c"my_plugin_enabled"), cvar_value!(c"1"))
+    /// }
+    /// ```
     pub fn register_cvar(
         &self,
         name: &ConsoleName,
@@ -647,6 +681,41 @@ impl Server<'_, '_> {
 
     /// Register a command for `Plugin::server_command` from an attached callback.
     /// GoldSrc cannot report native command-name collisions through this API.
+    /// Registration is permanent for the running process; use a plugin-specific
+    /// name and attempt registration once from an attached callback such as
+    /// [`crate::Plugin::start_frame`], as below. Registration is unavailable in
+    /// [`crate::Plugin::initialize`]. Arguments are provided as
+    /// an owned snapshot to [`crate::Plugin::server_command`], so native reentry
+    /// cannot change the tokens the callback sees.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::prelude::*;
+    ///
+    /// #[derive(Default)]
+    /// struct Commands {
+    ///     registration_attempted: bool,
+    /// }
+    /// impl Plugin for Commands {
+    ///     const METADATA: Metadata = Metadata {
+    ///         name: c"Commands", version: c"0.1", date: c"",
+    ///         author: c"Example", url: c"", log_tag: c"COMMANDS",
+    ///     };
+    ///     fn start_frame(&mut self, ctx: &mut Context<'_>) {
+    ///         if self.registration_attempted {
+    ///             return;
+    ///         }
+    ///         self.registration_attempted = true;
+    ///         if let Err(error) = ctx.server().register_command(console_name!(c"my_plugin_echo")) {
+    ///             eprintln!("command registration failed: {error}");
+    ///         }
+    ///     }
+    ///     fn server_command(&mut self, ctx: &mut Context<'_>, command: &Command) {
+    ///         if let Some(first_argument) = command.arg(0) {
+    ///             ctx.server().print(first_argument);
+    ///         }
+    ///     }
+    /// }
+    /// ```
     pub fn register_command(&self, name: &ConsoleName) -> Result<(), EngineError> {
         registration_available()?;
         let callback = self.context.command;

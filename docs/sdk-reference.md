@@ -114,6 +114,37 @@ those truncating methods.
 
 ## Engine services
 
+### Choosing and interpreting an operation
+
+Use `ctx.server()` for console registration, CVar reads and writes, and
+line/hull traces. Entity discovery, entity snapshots, player lookup, and
+identity validation are methods on `Context` itself. Use `ctx.metamod()` for
+Metamod logging and user-message registration lookup. Rustdoc includes compiled
+examples on `Server::register_cvar`, `Server::register_command`,
+`Context::entity_info`, `Server::trace_line`, and
+`Server::request_fake_client_removal`.
+
+| Result | Meaning and caller response |
+| --- | --- |
+| `server.cvar(name)` returns `Ok(None)` | No value could be copied. An unregistered CVar is one cause; the native getter can also return null or a string without a NUL terminator within the scan bound. An empty CVar value is `Some` containing an empty string. |
+| `ctx.entity_at(index)` returns `Ok(None)` | The index is out of range or the slot is not a live entity. Use the returned full handle when a lookup succeeds. |
+| Entity or player snapshot lookup returns `None` | Required services or a current identity could not be established. Do not substitute a fresh occupant in the same slot for the saved identity. |
+| A trace returns `Ok(result)` with `hit == None` | A hit identity may be unavailable even when collision occurred. Inspect the fraction and solid flags before interpreting the result. |
+| Fake-client removal returns `Ok(())` | A command was queued. Observe a later `Removed` or `Invalidated` state; success does not mean immediate removal. |
+| A lifecycle-sensitive operation reports unavailable, stale, or map-changed | Stop using the interrupted observation. Re-resolve on a later suitable callback if the operation is still needed. |
+
+Native calls can synchronously reenter the SDK. An identity check establishes
+what was current at that check; it does not pin a native allocation or promise
+that subsequent calls will succeed. Owned snapshots remain readable after an
+entity or player disappears, but their handles can be stale. Keep plugin state
+in Rust values and let each SDK operation validate the current native state.
+
+Console names and payload sizes are measured in bytes. Native strings need not
+be UTF-8; use `CStr`/`CString` bytes or handle `to_str()` failure explicitly.
+User-message validation checks byte counts and session identity; its separate
+unsafe sending contract still requires host ownership and client protocol
+readiness.
+
 ### Commands and CVars
 
 Use `ctx.server()` to register, read, and set CVars. For a working example, see

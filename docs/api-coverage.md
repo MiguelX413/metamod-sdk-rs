@@ -142,13 +142,14 @@ and normal shutdown evidence as in the Linux runs.
 
 Audited on 2026-11-24 with `missing_docs` warnings enabled for
 `metamod-sdk-rs`, with default features and with `--no-default-features`.
-Both configurations reported **124 missing documentation comments**. This is a lint count, not a percentage of documented
+The initial audit reported **124 missing documentation comments** in both
+configurations. This is a lint count, not a percentage of documented
 API or an assessment of documentation quality. Private implementation details,
 `#[doc(hidden)]` internals, generated raw bindings, and the separate macro and
 adapter crates are outside this count. The macro's existing documentation is
 available through its SDK re-export when default features are enabled.
 
-| Source | Missing comments |
+| Source | Initial missing comments |
 | --- | ---: |
 | `trace.rs` | 54 |
 | `message.rs` | 22 |
@@ -164,30 +165,27 @@ three structs, two associated constants, and one associated function.
 All emitted intra-doc links resolve in both configurations when broken links
 are treated as errors. The crate homepage examples are included in doctest verification.
 
-Remaining work:
+The follow-up documentation pass closes all 124 reported gaps: both feature
+configurations now build with **zero missing-docs warnings**. Public fields,
+error and lifecycle variants, accessors, metadata, and hook opt-ins have
+comments explaining their semantics. Examples cover CVar registration, command
+arguments, entity snapshots, trace filtering, and queued fake-client removal.
+The SDK crate now denies `missing_docs`, so new visible public items require
+comments in ordinary builds as well as documentation builds. Hidden FFI helpers,
+generated raw bindings, and separate crates remain outside this SDK policy.
 
-1. Document error variants and public data fields, including units, valid
-   ranges, unavailable operations, and lifecycle invalidation semantics.
-2. Fill descriptions of public types and methods, metadata fields, and hook
-   opt-in constants. Explain defaults, ignored results, and reentry behavior
-   where callers need them.
-3. Review existing prose for accuracy and add task-oriented examples for engine
-   services, entity identity, traces, and fake-client adapters. A satisfied
-   `missing_docs` lint alone does not establish usable documentation or a
-   complete unsafe contract.
-4. Enable an enforced missing-docs policy once the intentional public surface
-   is documented. Keep generated bindings and hidden implementation helpers
-   separate from that policy. The Rustdoc workflow builds documentation and
-   runs doctests for both feature configurations with warnings treated as errors;
-   missing-docs enforcement remains deferred.
+Further work is qualitative: expand game-specific adapter examples, review
+unsafe contracts as APIs evolve, and keep guide examples synchronized with the
+compiled Rustdoc examples. A satisfied lint does not establish documentation
+quality, complete unsafe contracts, or compatibility on an untested host.
 
 Reproduce from the repository root with the usual pinned submodules and
 libclang prerequisites:
 
 ```bash
-RUSTDOCFLAGS='-W missing-docs -D rustdoc::broken_intra_doc_links' \
+RUSTDOCFLAGS='-D warnings' \
   cargo doc --locked -p metamod-sdk-rs --no-deps
-RUSTDOCFLAGS='-W missing-docs -D rustdoc::broken_intra_doc_links' \
+RUSTDOCFLAGS='-D warnings' \
   cargo doc --locked -p metamod-sdk-rs --no-deps --no-default-features
 cargo test --locked -p metamod-sdk-rs --doc
 cargo test --locked -p metamod-sdk-rs --no-default-features --doc

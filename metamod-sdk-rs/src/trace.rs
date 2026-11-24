@@ -146,10 +146,16 @@ impl Context<'_> {
 /// Broad engine classification derived from world index and edict flags.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EntityKind {
+    /// The world edict at index zero.
     World,
+    /// An entity carrying the engine client flag without the fake-client flag.
     Client,
+    /// An entity carrying the engine fake-client flag, even if its client flag
+    /// is absent. This category takes precedence over client and monster flags.
     FakeClient,
+    /// An entity carrying the engine monster flag, after client classification.
     Monster,
+    /// An entity not matched by the world, client, or monster categories.
     Other,
 }
 
@@ -158,20 +164,30 @@ pub enum EntityKind {
 /// GameDLL-specific map keys may never have been stored in these fields.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct EntityKeyValues {
+    /// GameDLL classname, if retained in the common entvars field.
     pub classname: Option<CString>,
+    /// Global entity name used by game-specific cross-map logic.
     pub globalname: Option<CString>,
+    /// Target identifier referenced by this entity.
     pub target: Option<CString>,
+    /// Name by which other entities may target this entity.
     pub targetname: Option<CString>,
+    /// Model name or inline model reference as retained by the GameDLL.
     pub model: Option<CString>,
+    /// Native network/display name, with game-specific meaning.
     pub netname: Option<CString>,
+    /// Native message field; interpretation depends on the GameDLL.
     pub message: Option<CString>,
 }
 
 /// Entity classification and retained keyvalues copied at lookup time.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EntityInfo {
+    /// Identity validated while copying this snapshot; it may expire later.
     pub entity: EntityHandle,
+    /// Classification derived from the world index and native flags.
     pub kind: EntityKind,
+    /// Owned copies of the common retained string fields.
     pub keyvalues: EntityKeyValues,
 }
 
@@ -179,17 +195,26 @@ pub struct EntityInfo {
 /// The snapshot remains readable after its entity handle expires.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EntitySpatial {
+    /// Identity validated while copying the spatial fields.
     pub entity: EntityHandle,
+    /// World-space origin in engine units.
     pub origin: [f32; 3],
+    /// Native pitch, yaw, and roll in degrees.
     pub angles: [f32; 3],
+    /// Native velocity in engine units per second.
     pub velocity: [f32; 3],
+    /// Absolute world-space minimum of the engine-reported bounding box.
     pub bounds_min: [f32; 3],
+    /// Absolute world-space maximum of the engine-reported bounding box.
     pub bounds_max: [f32; 3],
 }
 
+/// Entity discovery could not obtain a consistent active-map result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EntityError {
+    /// No active map, valid entity capacity, or required edict callback is available.
     Unavailable,
+    /// Map retirement or shutdown invalidated discovery during a native call.
     MapChanged,
 }
 
@@ -260,6 +285,19 @@ impl Context<'_> {
 
     /// Copy engine classification and common string keyvalues. Returns
     /// `None` if lookup is unavailable or the allocation expires mid-read.
+    ///
+    /// The returned strings are owned. Keeping a snapshot does not keep the
+    /// native entity alive; its handle must be revalidated for later operations.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, EntityError, EntityInfo};
+    ///
+    /// fn world_info(ctx: &Context<'_>) -> Result<Option<EntityInfo>, EntityError> {
+    ///     let Some(world) = ctx.entity_at(0)? else { return Ok(None) };
+    ///     // This second lookup can fail if a native call invalidates the handle.
+    ///     Ok(ctx.entity_info(world))
+    /// }
+    /// ```
     pub fn entity_info(&self, entity: EntityHandle) -> Option<EntityInfo> {
         let engine = __ffi::engine()?;
         let lookup = engine.string_from_index?;
@@ -378,7 +416,9 @@ fn discovery() -> Result<(u64, i32, EdictLookup), EntityError> {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum TraceMonsters {
     #[default]
+    /// Include monsters in native collision checks (the default).
     Include,
+    /// Request that the native trace ignore monsters.
     Ignore,
 }
 
@@ -386,21 +426,33 @@ pub enum TraceMonsters {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
 pub enum Hull {
+    /// Point-sized hull (native hull 0).
     Point = raw::point_hull as i32,
+    /// Standard standing-player hull (native hull 1).
     Human = raw::human_hull as i32,
+    /// Standard large hull (native hull 2); dimensions belong to the host.
     Large = raw::large_hull as i32,
+    /// Standard head/crouching hull (native hull 3); dimensions belong to the host.
     Head = raw::head_hull as i32,
 }
 
+/// Collision filtering shared by line and hull traces.
+/// The default includes monsters and skips no entity.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TraceOptions {
+    /// Whether the native trace includes monsters.
     pub monsters: TraceMonsters,
+    /// Optional entity to exclude. A stale handle causes
+    /// [`TraceError::StaleEntity`] rather than tracing against a replacement.
     pub skip: Option<EntityHandle>,
 }
 
+/// Engine-reported collision plane in world coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TracePlane {
+    /// Native plane normal; copied without normalization by the SDK.
     pub normal: [f32; 3],
+    /// Native plane distance from the world origin in engine units.
     pub distance: f32,
 }
 
@@ -408,22 +460,39 @@ pub struct TracePlane {
 /// became invalid during resolution. Use the fraction to detect a collision.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TraceResult {
+    /// The engine reports that the entire trace is inside solid space.
     pub all_solid: bool,
+    /// The engine reports that the starting position is inside solid space.
     pub start_solid: bool,
+    /// The engine reports that the trace passes through open space.
     pub in_open: bool,
+    /// The engine reports that the trace passes through water.
     pub in_water: bool,
+    /// Native fraction of the segment completed before collision; conventionally
+    /// `1.0` means unobstructed. The SDK does not clamp the host value.
     pub fraction: f32,
+    /// Native trace endpoint in world-space engine units.
     pub end_position: [f32; 3],
+    /// Collision plane when the trace is not all-solid and its fraction is below
+    /// `1.0`; otherwise `None`.
     pub plane: Option<TracePlane>,
+    /// Resolved identity of the hit entity, if still valid during resolution.
+    /// `None` alone does not prove that the trace was unobstructed.
     pub hit: Option<EntityHandle>,
+    /// Native hit-group number; its interpretation is GameDLL-specific.
     pub hit_group: i32,
 }
 
+/// A trace could not complete with the required lifecycle and input checks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TraceError {
+    /// No active map, engine access, or required native trace callback is available.
     Unavailable,
+    /// At least one endpoint component is NaN or infinite.
     InvalidCoordinates,
+    /// The entity requested in [`TraceOptions::skip`] no longer resolves.
     StaleEntity,
+    /// Map retirement or shutdown was observed during the trace or hit resolution.
     MapChanged,
 }
 
@@ -472,16 +541,42 @@ impl TraceSegment {
         Ok(Self { start, end })
     }
 
+    /// Return the finite world-space starting point in engine units.
     pub const fn start(self) -> [f32; 3] {
         self.start
     }
 
+    /// Return the finite world-space ending point in engine units.
     pub const fn end(self) -> [f32; 3] {
         self.end
     }
 }
 
 impl Server<'_, '_> {
+    /// Trace a point along a finite segment and copy the native collision result.
+    ///
+    /// Returns an error if engine access is unavailable, the skip identity is
+    /// stale, or the map changes during the operation. A returned hit handle
+    /// can still expire after this call; see [`TraceResult::hit`].
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, EntityHandle, TraceError, TraceOptions, TraceSegment};
+    ///
+    /// fn probe(ctx: &Context<'_>, skip: EntityHandle) -> Result<(), TraceError> {
+    ///     let segment = TraceSegment::new([0.0, 0.0, 32.0], [128.0, 0.0, 32.0])?;
+    ///     let result = ctx.server().trace_line(segment, TraceOptions {
+    ///         skip: Some(skip),
+    ///         ..TraceOptions::default()
+    ///     })?;
+    ///     if result.fraction < 1.0 {
+    ///         // A collision need not have a resolvable hit identity.
+    ///         if let Some(hit) = result.hit {
+    ///             let _still_current = ctx.is_entity_current(hit);
+    ///         }
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn trace_line(
         &self,
         segment: TraceSegment,
@@ -490,6 +585,10 @@ impl Server<'_, '_> {
         trace(segment, options, None)
     }
 
+    /// Sweep a standard native hull along a finite segment.
+    ///
+    /// Uses the same filtering and lifecycle checks as [`Self::trace_line`].
+    /// Hull dimensions and collision behavior are supplied by the host.
     pub fn trace_hull(
         &self,
         segment: TraceSegment,

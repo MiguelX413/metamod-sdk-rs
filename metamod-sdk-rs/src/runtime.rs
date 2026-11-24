@@ -126,6 +126,7 @@ impl PlayerUserId {
         }
     }
 
+    /// Return the positive native user ID as an integer.
     pub const fn get(self) -> i32 {
         self.0.get()
     }
@@ -186,6 +187,8 @@ impl PlayerId {
         Self { slot, serial }
     }
 
+    /// Return the one-based slot. Slots are reused; compare the complete
+    /// [`PlayerId`] when distinguishing sessions.
     pub fn slot(self) -> PlayerSlot {
         self.slot
     }
@@ -257,6 +260,7 @@ impl MetamodMessage {
     /// Maximum payload length in bytes, excluding the NUL terminator.
     pub const MAX_LEN: usize = MAX_UTILITY_MESSAGE;
 
+    /// Borrow the validated message as a native NUL-terminated string.
     pub fn as_c_str(&self) -> &CStr {
         &self.0
     }
@@ -316,6 +320,9 @@ impl<'callback> Context<'callback> {
         }
     }
 
+    /// Access callback-scoped engine services such as commands, CVars,
+    /// and traces. Individual operations can be unavailable. Entity discovery
+    /// is available directly on [`Context`].
     pub fn server(&self) -> Server<'_, 'callback> {
         Server { context: self }
     }

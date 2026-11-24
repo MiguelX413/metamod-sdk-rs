@@ -32,8 +32,16 @@ pub struct UserMessagePayload {
 /// A payload exceeded its byte budget or did not match its fixed size.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MessagePayloadError {
+    /// Appending a field would exceed [`MAX_USER_MESSAGE_BYTES`].
+    /// The failed append leaves the existing payload unchanged.
     TooLong,
-    SizeMismatch { expected: usize, actual: usize },
+    /// The encoded length differs from a fixed-size registration or schema.
+    SizeMismatch {
+        /// Required payload length in bytes, excluding framing.
+        expected: usize,
+        /// Encoded payload length in bytes, excluding framing.
+        actual: usize,
+    },
 }
 
 impl fmt::Display for MessagePayloadError {
@@ -59,6 +67,7 @@ impl Default for UserMessagePayload {
 }
 
 impl UserMessagePayload {
+    /// Create an empty payload without accessing the engine.
     pub const fn new() -> Self {
         Self {
             bytes: [0; MAX_USER_MESSAGE_BYTES],
@@ -123,7 +132,9 @@ impl UserMessagePayload {
 /// Payload size declared by the native user-message registration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UserMessageSize {
+    /// Every payload must contain exactly this many bytes, excluding framing.
     Fixed(u8),
+    /// Payload length may vary up to [`MAX_USER_MESSAGE_BYTES`].
     Variable,
 }
 
@@ -136,14 +147,19 @@ pub struct RegisteredUserMessage {
 }
 
 impl RegisteredUserMessage {
+    /// Native message ID observed at lookup time (64 through 255).
     pub const fn id(self) -> u8 {
         self.id
     }
 
+    /// Fixed or variable payload size observed at lookup time.
     pub const fn size(self) -> UserMessageSize {
         self.size
     }
 
+    /// Check the encoded byte count against this observed registration.
+    /// This does not validate field meaning, client readiness, or whether the
+    /// registration is still current. Variable-size payloads pass this check.
     pub fn validate_payload(self, payload: &UserMessagePayload) -> Result<(), MessagePayloadError> {
         match self.size {
             UserMessageSize::Fixed(expected) => payload.validate_fixed_size(usize::from(expected)),
@@ -174,10 +190,16 @@ impl RegisteredUserMessage {
     }
 }
 
+/// A user-message registration could not be resolved on the active map.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MessageLookupError {
+    /// The map, Metamod lookup utility, or engine access is unavailable,
+    /// including lifecycle invalidation during lookup.
     Unavailable,
+    /// Metamod returned zero for this name, indicating no registration.
     NotRegistered,
+    /// The native ID is outside 64–255, or the size is neither variable
+    /// (`-1`) nor a fixed length of 0–192 bytes.
     InvalidRegistration,
 }
 
@@ -220,11 +242,14 @@ impl crate::MetaMod<'_, '_> {
 pub struct MessageRecipient(crate::PlayerId);
 
 impl MessageRecipient {
+    /// Return the session observed during validation. This does not revalidate it.
     pub const fn player(self) -> crate::PlayerId {
         self.0
     }
 }
 
+/// The recipient could not be resolved to a live tracked session on the
+/// active map. Engine unavailability also prevents this validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StaleMessageRecipient;
 
@@ -295,12 +320,20 @@ pub struct MessageSender<'context, 'callback> {
     context: &'context crate::Context<'callback>,
 }
 
+/// A scoped send was rejected or interrupted. A failure after native begin
+/// does not trigger an automatic native end or roll back emitted bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MessageSendError {
+    /// Another SDK send is active on this thread, including its validation phase.
+    /// This guard does not detect arbitrary native senders.
     Busy,
+    /// Native messaging callbacks, the active map, or engine access are unavailable.
     Unavailable,
+    /// The message registration could not be resolved again at the send boundary.
     Lookup(MessageLookupError),
+    /// The encoded payload does not match the freshly resolved registration.
     Payload(MessagePayloadError),
+    /// The tracked recipient failed validation before native transmission.
     StaleRecipient,
     /// Observed lifecycle invalidation. No native cleanup is attempted.
     Interrupted,

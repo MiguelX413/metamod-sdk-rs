@@ -113,7 +113,7 @@
 //! - [Example plugins](https://github.com/MiguelX413/metamod-sdk-rs/tree/master/examples)
 //! - [API coverage and roadmap](https://github.com/MiguelX413/metamod-sdk-rs/blob/master/docs/api-coverage.md)
 //! - [Native memory contracts and evidence](https://github.com/MiguelX413/metamod-sdk-rs/blob/master/docs/memory-safety-audit.md)
-#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(unsafe_op_in_unsafe_fn, missing_docs)]
 
 use std::ffi::CStr;
 
@@ -231,16 +231,24 @@ macro_rules! cvar_value {
 
 /// Plugin metadata. Metamod retains access to these strings for the module lifetime.
 pub struct Metadata {
+    /// Display name retained by Metamod for the lifetime of the module.
     pub name: &'static CStr,
+    /// Plugin version reported to Metamod; no version ordering is imposed.
     pub version: &'static CStr,
+    /// Build or release date text; may be empty.
     pub date: &'static CStr,
+    /// Plugin author or authors reported to Metamod.
     pub author: &'static CStr,
+    /// Project URL reported to Metamod; may be empty.
     pub url: &'static CStr,
+    /// Prefix used to identify this plugin in Metamod logs.
     pub log_tag: &'static CStr,
 }
 
 /// One server-thread-owned instance per successful startup attachment.
 pub trait Plugin: Default + 'static {
+    /// Static plugin identity. Supplied by the registration attribute, or manually
+    /// when using [`export_plugin!`].
     const METADATA: Metadata;
 
     /// Return false to decline attachment and drop this instance.
@@ -271,8 +279,13 @@ pub trait Plugin: Default + 'static {
 
     /// Register the pre and post lag compensation hooks independently.
     const LAG_COMPENSATION_PRE: bool = false;
+    /// Opt into the post-hook for the GameDLL lag-compensation decision.
+    /// Defaults to `false`, independently of [`Self::LAG_COMPENSATION_PRE`].
     const LAG_COMPENSATION_POST: bool = false;
 
+    /// Decide how Metamod should handle the GameDLL lag-compensation call.
+    /// Requires [`Self::LAG_COMPENSATION_PRE`]. The default ignores the hook;
+    /// nested synchronous calls cannot borrow plugin state and also defer.
     fn allow_lag_compensation(&mut self, _context: &mut Context<'_>) -> HookResult<bool> {
         HookResult::Ignored
     }
@@ -292,6 +305,8 @@ pub trait Plugin: Default + 'static {
     /// Observe copied inputs. Reentrant observations may be delivered later.
     fn key_value(&mut self, _context: &mut Context<'_>, _event: &KeyValueEvent) {}
 
+    /// Observe the pre-hook for a server frame. The default does nothing.
+    /// Nested frame notifications are skipped while a plugin callback is active.
     fn start_frame(&mut self, _context: &mut Context<'_>) {}
 
     /// Runs after the game DLL activates the map.
