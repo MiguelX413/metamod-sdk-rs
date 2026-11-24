@@ -1,4 +1,119 @@
-//! Startup-only stateful GoldSrc Metamod plugins with typed hooks.
+//! Build native GoldSrc Metamod plugins with Rust state and typed hooks.
+//!
+//! Implement [`Plugin`] to receive server callbacks. Engine-facing callbacks
+//! receive a scoped [`Context`] for engine and Metamod services; shutdown runs
+//! without engine access. The SDK owns one plugin instance on the server thread
+//! and contains unwinding Rust panics at its FFI boundary. Abort-on-panic builds
+//! still terminate the process.
+//!
+//! # Quick start
+//!
+//! Build your plugin as a `cdylib`. The default `macros` feature supplies the
+//! registration attribute:
+//!
+//! ```toml
+//! [lib]
+//! crate-type = ["cdylib"]
+//!
+//! [dependencies]
+//! metamod-sdk-rs = { git = "https://github.com/MiguelX413/metamod-sdk-rs" }
+//! ```
+//!
+//! ```
+//! # #[cfg(feature = "macros")]
+//! # mod example {
+//! use metamod_sdk_rs::prelude::*;
+//!
+//! #[derive(Default)]
+//! struct MyPlugin;
+//!
+//! #[metamod_plugin(
+//!     name = "My Plugin",
+//!     version = "0.1.0",
+//!     author = "Your Name",
+//!     log_tag = "MYPLUGIN"
+//! )]
+//! impl Plugin for MyPlugin {
+//!     fn server_activate(&mut self, ctx: &mut Context<'_>) {
+//!         ctx.server().print(c"My Plugin: map activated\n");
+//!     }
+//! }
+//! # }
+//! ```
+//!
+//! # Find an API
+//!
+//! | Task | Start here |
+//! | --- | --- |
+//! | Handle frames, maps, admission, and player events | [`Plugin`] |
+//! | Print, register commands, and access CVars | [`Context::server`], [`Server`], [`Command`] |
+//! | Log through Metamod | [`Context::metamod`], [`MetaMod`] |
+//! | Track player sessions | [`PlayerId`], [`Context::player_at`] |
+//! | Discover entities and copy their properties | [`EntityHandle`], [`EntityInfo`], [`EntitySpatial`] |
+//! | Trace geometry | [`TraceSegment`], [`TraceOptions`], [`TraceResult`] |
+//! | Prepare user-message bytes | [`UserMessagePayload`] |
+//! | Opt into native user-message delivery | [`MessageSender`] and its unsafe host contract |
+//! | Implement game-specific fake-client setup | [`FakeClientSetup`] |
+//!
+//! [`prelude`] collects the common imports. Errors such as [`EngineError`],
+//! [`EntityError`], and [`MessageSendError`] describe unavailable operations and
+//! invalidated identities; native calls can synchronously change lifecycle state.
+//!
+//! # Registration without procedural macros
+//!
+//! Set `default-features = false` on the dependency, implement
+//! [`Plugin::METADATA`], and invoke [`export_plugin!`] once per plugin library.
+//! This uses the same runtime and hooks as attribute registration.
+//!
+//! ```
+//! use metamod_sdk_rs::{Metadata, Plugin, export_plugin};
+//!
+//! #[derive(Default)]
+//! struct MyPlugin;
+//!
+//! impl Plugin for MyPlugin {
+//!     const METADATA: Metadata = Metadata {
+//!         name: c"My Plugin",
+//!         version: c"0.1.0",
+//!         date: c"",
+//!         author: c"Your Name",
+//!         url: c"",
+//!         log_tag: c"MYPLUGIN",
+//!     };
+//! }
+//!
+//! export_plugin!(MyPlugin);
+//! ```
+//!
+//! # Lifecycle and native safety
+//!
+//! Plugins load at server startup only. Runtime loading and unloading are
+//! unsupported; stop the server before replacing a plugin. The SDK refuses
+//! detach and keeps command registrations and bounded CVar storage resident.
+//!
+//! Keep plugin state on the server thread. Engine calls can synchronously
+//! reenter the SDK; nested notifications are deferred while plugin state is
+//! mutably borrowed. Callback contexts and native pointers must not escape
+//! their documented lifetimes. Player sessions and entity identities can expire
+//! across native calls or map changes; use the SDK's validation operations.
+//!
+//! The native host must uphold pointer, string, allocation, callback, and
+//! ownership contracts. Null and alignment checks cannot establish arbitrary
+//! pointer validity. Native message sending additionally requires explicit
+//! unsafe host opt-in; payload construction alone does not establish safe
+//! delivery or client protocol correctness.
+//!
+//! # Build, examples, and verification
+//!
+//! Native deployments target Linux i686 or Windows x86. Building requires the
+//! pinned upstream headers and the target's C/C++ toolchain; a host documentation
+//! build does not verify a native deployment. Live compatibility and memory
+//! evidence have separate, configuration-specific scopes.
+//!
+//! - [SDK reference and installation](https://github.com/MiguelX413/metamod-sdk-rs/blob/master/docs/sdk-reference.md)
+//! - [Example plugins](https://github.com/MiguelX413/metamod-sdk-rs/tree/master/examples)
+//! - [API coverage and roadmap](https://github.com/MiguelX413/metamod-sdk-rs/blob/master/docs/api-coverage.md)
+//! - [Native memory contracts and evidence](https://github.com/MiguelX413/metamod-sdk-rs/blob/master/docs/memory-safety-audit.md)
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use std::ffi::CStr;
@@ -45,6 +160,7 @@ pub use runtime::{
 #[cfg(feature = "macros")]
 pub use metamod_macros::metamod_plugin;
 
+/// Common types and registration helpers for plugin implementations.
 pub mod prelude {
     #[cfg(feature = "macros")]
     pub use crate::metamod_plugin;

@@ -123,8 +123,13 @@ otherwise touch the freed edict. Hosts must notify retirement before freeing
 arena storage, keep same-map identity fields readable, and maintain native
 serials correctly. Unobserved retirement remains outside this check.
 
-Strict Linux native imports now require a version 1 build manifest. The collector
-assigns a run UUID, retains the loader and three plugin binaries, and records
+Strict Linux native imports now require a version 1 build manifest.
+The shared strict probe-suite check also runs on Windows, whose collector does
+not yet produce this manifest. Windows imports explicitly record
+`runtime.native_build_identity.status = "UNVERIFIED"`; they do not claim verified
+build provenance. Windows run/build identity binding remains pending.
+
+The Linux collector assigns a run UUID, retains the loader and three plugin binaries, and records
 their SHA-256 hashes, target, compiler versions, sanitizer selection, environment
 options, repository/submodule commits, dirty status, and tracked diff hashes.
 Collection rejects source-state changes during compilation and requires the

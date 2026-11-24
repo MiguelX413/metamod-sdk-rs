@@ -141,3 +141,80 @@ Movement, bot AI, and game-specific setup are later work.
    sanitizer findings, and mismatched builds or runs. A clean fixture
    run supports the invariants it exercised. Live behavior and host
    obligations require their own evidence.
+
+### Public API Rustdoc audit
+
+Audited on 2026-11-24 with `missing_docs` warnings enabled for
+`metamod-sdk-rs`, with default features and with `--no-default-features`.
+Both configurations report **124 missing documentation comments** after the
+crate homepage update. This is a lint count, not a percentage of documented
+API or an assessment of documentation quality. Private implementation details,
+`#[doc(hidden)]` internals, generated raw bindings, and the separate macro and
+adapter crates are outside this count. The macro's existing documentation is
+available through its SDK re-export when default features are enabled.
+
+| Source | Missing comments |
+| --- | ---: |
+| `trace.rs` | 54 |
+| `message.rs` | 22 |
+| `engine.rs` | 12 |
+| `fake_client.rs` | 12 |
+| `lib.rs` | 10 |
+| `hooks.rs` | 10 |
+| `runtime.rs` | 4 |
+| **Total** | **124** |
+
+By item kind: 52 enum variants, 43 fields, 16 methods, seven enums,
+three structs, two associated constants, and one associated function.
+All emitted intra-doc links resolve in both configurations when broken links
+are treated as errors. The crate homepage provides macro and manual
+registration examples, API navigation, native lifecycle constraints, and links
+to the longer guides. Its Rust examples are included in doctest verification.
+
+Recommended follow-up order:
+
+1. Document error variants and public data fields, including units, valid
+   ranges, unavailable operations, and lifecycle invalidation semantics.
+2. Fill descriptions of public types and methods, metadata fields, and hook
+   opt-in constants. Explain defaults, ignored results, and reentry behavior
+   where callers need them.
+3. Review existing prose for accuracy and add task-oriented examples for engine
+   services, entity identity, traces, and fake-client adapters. A satisfied
+   `missing_docs` lint alone does not establish usable documentation or a
+   complete unsafe contract.
+4. Enable an enforced missing-docs policy once the intentional public surface
+   is documented. Keep generated bindings and hidden implementation helpers
+   separate from that policy. The Rustdoc workflow builds documentation and
+   runs doctests for both feature configurations with warnings treated as errors;
+   missing-docs enforcement remains deferred.
+
+Reproduce from the repository root with the usual pinned submodules and
+libclang prerequisites:
+
+```bash
+RUSTDOCFLAGS='-W missing-docs -D rustdoc::broken_intra_doc_links' \
+  cargo doc --locked -p metamod-sdk-rs --no-deps
+RUSTDOCFLAGS='-W missing-docs -D rustdoc::broken_intra_doc_links' \
+  cargo doc --locked -p metamod-sdk-rs --no-deps --no-default-features
+cargo test --locked -p metamod-sdk-rs --doc
+cargo test --locked -p metamod-sdk-rs --no-default-features --doc
+```
+
+To preview locally, run `cargo doc --locked -p metamod-sdk-rs --no-deps --open`.
+No registry publication is required. The generated landing page is
+`target/doc/metamod_sdk_rs/index.html` with the default Cargo target directory.
+
+
+The `Rustdoc` GitHub Actions workflow uploads a `rustdoc-html` artifact on
+successful pushes, pull requests, and manual runs (retained for 14 days).
+Download and extract it, then open `index.html` or
+`metamod_sdk_rs/index.html`. Only default-branch pushes and manual runs on
+that branch deploy the default-feature HTML to GitHub Pages. Pull requests
+and other branches produce downloadable previews without deployment.
+
+To enable hosting, a repository maintainer must select **Settings → Pages →
+Build and deployment → Source → GitHub Actions**. The deployment uses the
+`github-pages` environment and its configured protection rules. The deployment
+job reports the actual site URL; Pages hosting does not publish the crate to
+crates.io or change `publish = false`. No repository settings are changed by
+adding the workflow itself.

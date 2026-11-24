@@ -388,6 +388,30 @@ class ProtocolTests(unittest.TestCase):
                     if name == "complete":
                         self.assertTrue(report["protocol_complete"])
                         self.assertEqual(set(by_test(report["native_fixture_results"])), runner.NATIVE_SUITE)
+                        # Win32 shares the strict probe suite, but its collector
+                        # has not implemented the Linux build manifest format.
+                        windows = {"id": "fixture", "os": "windows", "architecture": "x86", "exit_status": 0}
+                        runner.dump(folder / "runtime.json", windows)
+                        windows_command = [sys.executable, runner.__file__, "import", str(folder / "runtime.json"),
+                                           str(folder / "windows"), str(folder / "err.log"), str(folder / "out.log"),
+                                           "--native-fixture", "--require-native-suite"]
+                        result = subprocess.run(windows_command, capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        windows_report = runner.load(folder / "windows/report.json")["runs"][0]
+                        self.assertEqual(windows_report["runtime"]["native_build_identity"]["status"], "UNVERIFIED")
+                        self.assertNotIn("verified_native_build", windows_report["runtime"])
+                        self.assertIn("Native build identity **UNVERIFIED**",
+                                      (folder / "windows/report.md").read_text())
+                        for claim in ("verified_native_build", "native_identity"):
+                            runner.dump(folder / "runtime.json", {**windows, claim: {"claimed": True}})
+                            windows_command[4] = str(folder / ("windows-forged-" + claim))
+                            result = subprocess.run(windows_command, capture_output=True, text=True)
+                            self.assertEqual(result.returncode, 2, result.stderr)
+                        # The Windows exception must not weaken Linux imports.
+                        runner.dump(folder / "runtime.json", {**windows, "os": "linux", "architecture": "i686"})
+                        windows_command[4] = str(folder / "linux-unbound")
+                        result = subprocess.run(windows_command, capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_unknown_probe_cannot_be_aggregated_as_pass(self):
         with tempfile.TemporaryDirectory() as directory:
