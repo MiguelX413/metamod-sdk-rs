@@ -1,9 +1,11 @@
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import memory_safety
 
@@ -65,3 +67,27 @@ class MemorySafetyTests(unittest.TestCase):
         self.assertEqual(row["native_runtime"]["status"], "UNSUPPORTED")
         self.assertEqual(row["compatibility"]["status"], "NOT_RUN")
         self.assertEqual(row["rust_sdk_soundness"]["status"], "NOT_RUN")
+
+    def test_miri_artifacts_include_nested_rust_modules_and_tests(self):
+        sources = {
+            "metamod-sdk-rs/src/lib.rs": "mod __ffi;",
+            "metamod-sdk-rs/src/__ffi/mod.rs": "mod state;",
+            "metamod-sdk-rs/src/__ffi/state.rs": "struct State;",
+            "metamod-sdk-rs/src/__ffi/tests/lifecycle.rs": "fn lifecycle() {}",
+            "Cargo.lock": "lock",
+            "metamod-sys/build.rs": "fn main() {}",
+            "metamod-sys/wrapper.hpp": "// headers",
+            "metamod-sys/src/lib.rs": "// bindings",
+        }
+        for name, content in sources.items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        unavailable = subprocess.CompletedProcess([], 1, stdout=b"Miri unavailable")
+        with patch.object(memory_safety.subprocess, "run", return_value=unavailable):
+            record = memory_safety.miri_evidence(self.root, self.root / "miri-output")
+        self.assertEqual(record["status"], "NOT_RUN")
+        self.assertEqual(record["artifacts"], {
+            name: hashlib.sha256(content.encode()).hexdigest()
+            for name, content in sources.items()
+        })

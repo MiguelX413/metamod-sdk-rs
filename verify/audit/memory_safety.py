@@ -148,7 +148,7 @@ def miri_evidence(repo, output):
     """Run controlled Rust mocks and preserve exact tool output and inputs."""
     output = output.resolve()
     output.mkdir(parents=True)
-    artifacts = sorted((repo / "metamod-sdk-rs" / "src").glob("*.rs"))
+    artifacts = sorted((repo / "metamod-sdk-rs" / "src").rglob("*.rs"))
     artifacts.extend(repo / name for name in ("Cargo.lock", "metamod-sys/build.rs", "metamod-sys/wrapper.hpp",
                                               "metamod-sys/src/lib.rs"))
     record = {
