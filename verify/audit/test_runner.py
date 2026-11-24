@@ -282,10 +282,19 @@ class ProtocolTests(unittest.TestCase):
         cases = [
             ("complete", b"".join(records), shutdown, 0),
             ("missing", b"".join(records[:-1]), shutdown, 1),
+            ("missing-retained-cvar", b"".join(native(test) for test in sorted(runner.NATIVE_SUITE)
+                                              if test != "native.cvar.retained_storage.v1"), shutdown, 1),
+            ("duplicate-retained-cvar", b"".join(records) + native("native.cvar.retained_storage.v1"), shutdown, 1),
             ("duplicate", b"".join(records + records[:1]), shutdown, 1),
             ("conflicting", b"".join(records) + native(sorted(runner.NATIVE_SUITE)[0], "different assertion"), shutdown, 1),
             ("unexpected", b"".join(records) + native("native.other.v1"), shutdown, 1),
             ("malformed", b"".join(records) + b"MM_AUDIT_NATIVE {broken\n", shutdown, 1),
+            ("missing-reentrant-string", b"".join(native(test) for test in sorted(runner.NATIVE_SUITE)
+                                                  if test != "native.string.reentrant_invalidation.v1"), shutdown, 1),
+            ("duplicate-reentrant-string", b"".join(records) + native("native.string.reentrant_invalidation.v1"), shutdown, 1),
+            ("missing-retired-arena", b"".join(native(test) for test in sorted(runner.NATIVE_SUITE)
+                                              if test != "native.entity.retired_arena.v1"), shutdown, 1),
+            ("duplicate-retired-arena", b"".join(records) + native("native.entity.retired_arena.v1"), shutdown, 1),
             ("missing-shutdown", b"".join(records), b"", 1),
             ("reversed-shutdown", b"".join(records),
              wire(5, "result", test="shutdown.drop.v1", result="PASS", expected="shutdown", observed="ran")

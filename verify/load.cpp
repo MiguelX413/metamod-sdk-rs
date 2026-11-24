@@ -25,6 +25,9 @@ static DLL_FUNCTIONS post_hooks{};
 static NEW_DLL_FUNCTIONS new_hooks{};
 static edict_t player{}, world{}, vacant{};
 static bool discovery_transition;
+static bool retire_discovery_edict;
+static bool expect_retired_edict;
+static int retired_edict_reports;
 static int logged;
 static int keyvalue_logs;
 static int admission_deferrals;
@@ -39,7 +42,14 @@ static void (*audit_report)();
 static std::string audit_output;
 
 static cvar_t *registered_cvar;
+static const char *retained_cvar_name;
+static char *retained_cvar_default;
+static std::string retained_cvar_name_copy;
+static std::string retained_cvar_default_copy;
 static char cvar_value[1024];
+static bool invalidate_cvar_string;
+static bool expect_invalidated_cvar;
+static int invalidated_cvar_reports;
 static void (*command)();
 static void (*trace_command)();
 static void (*entities_command)();
@@ -81,6 +91,12 @@ static void register_cvar(cvar_t *cvar) {
     __lsan_ignore_object(cvar->name);
     __lsan_ignore_object(cvar->string);
 #endif
+    retained_cvar_name = cvar->name;
+    // The SDK registration contract supplies writable retained storage even
+    // though the upstream ABI exposes string as const char*.
+    retained_cvar_default = const_cast<char *>(cvar->string);
+    retained_cvar_name_copy = cvar->name;
+    retained_cvar_default_copy = cvar->string;
     registered_cvar = cvar;
     std::strcpy(cvar_value, cvar->string);
     cvar->string = cvar_value;
@@ -88,6 +104,16 @@ static void register_cvar(cvar_t *cvar) {
 
 static const char *get_cvar(const char *name) {
     assert(find_cvar(name));
+    if (invalidate_cvar_string) {
+        invalidate_cvar_string = false;
+        // Model a getter post hook expiring the selected value during SDK
+        // reentry. No fixture access to the string occurs after delete[].
+        char *selected = new char[32];
+        std::strcpy(selected, "expired native value");
+        hooks.pfnStartFrame();
+        delete[] selected;
+        return selected;
+    }
     return registered_cvar->string;
 }
 
@@ -138,6 +164,15 @@ static const char *command_argv(int index) {
 
 static edict_t *entity_of_index(int index) {
     assert(index >= 0 && index < 8);
+    if (index == 3 && retire_discovery_edict) {
+        retire_discovery_edict = false;
+        edict_t *retired = new edict_t{};
+        // Notify retirement before freeing storage, then return the address
+        // selected by the interrupted lookup. The SDK must not read it.
+        hooks.pfnServerDeactivate();
+        delete retired;
+        return retired;
+    }
     if (index == 3 && discovery_transition) {
         hooks.pfnServerDeactivate();
     }
@@ -234,6 +269,20 @@ static void server_print(const char *message) {
             post_hooks.pfnClientPutInServer(&player);
             assert(audit_logs == before);
         }
+        return;
+    }
+    if (expect_retired_edict) {
+        assert(!retire_discovery_edict);
+        assert(std::strcmp(message, "Entity discovery failed: the map changed during entity discovery\n") == 0);
+        expect_retired_edict = false;
+        ++retired_edict_reports;
+        return;
+    }
+    if (expect_invalidated_cvar) {
+        assert(!invalidate_cvar_string);
+        assert(std::strcmp(message, "Could not read rust_hello_message: engine operation unavailable\n") == 0);
+        expect_invalidated_cvar = false;
+        ++invalidated_cvar_reports;
         return;
     }
     if (expect_inactive_trace) {
@@ -401,6 +450,18 @@ static void exercise_audit() {
     new_hooks.pfnGameShutdown();
     assert(registered_cvar == find_cvar("mm_audit_value"));
     assert(registered_cvar->string == cvar_value);
+    // The module remains loaded: shutdown must preserve host-retained storage.
+    // In particular, replacing string must not free the original default.
+    assert(registered_cvar->name == retained_cvar_name);
+    assert(retained_cvar_name_copy == retained_cvar_name);
+    assert(retained_cvar_default_copy == retained_cvar_default);
+    const char first = retained_cvar_default[0];
+    retained_cvar_default[0] = first == 'X' ? 'Y' : 'X';
+    assert(retained_cvar_default[0] != first);
+    retained_cvar_default[0] = first;
+    assert(retained_cvar_default_copy == retained_cvar_default);
+    assert(registered_cvar->flags == 0 && registered_cvar->next == nullptr);
+    native_pass("native.cvar.retained_storage.v1", "Record name and replaced default survived shutdown and the original default remained writable");
     const auto before = audit_logs;
     audit_report();
     assert(audit_logs == before);
@@ -608,9 +669,15 @@ int main(int argc, char **argv) {
         reenter_argv = true;
         command();
         assert(!reenter_argv && logged == 5);
+        invalidate_cvar_string = true;
+        expect_invalidated_cvar = true;
+        command();
+        assert(!invalidate_cvar_string && !expect_invalidated_cvar);
+        assert(invalidated_cvar_reports == 1 && logged == 5);
         globals.mres = MRES_SUPERCEDE;
         command();
         assert(logged == 6 && globals.mres == MRES_SUPERCEDE);
+        native_pass("native.string.reentrant_invalidation.v1", "Getter returned freed storage after SDK reentry; read reported unavailable and a later ordinary read succeeded");
         args[1] = "New value";
         command();
         args[1] = nullptr;
@@ -627,6 +694,14 @@ int main(int argc, char **argv) {
         hooks.pfnServerActivate(nullptr, 0, 0);
         post_hooks.pfnServerActivate(nullptr, 0, 0);
         assert(logged == 12);
+        retire_discovery_edict = true;
+        expect_retired_edict = true;
+        entities_command();
+        assert(!retire_discovery_edict && !expect_retired_edict);
+        assert(retired_edict_reports == 1 && logged == 12);
+        hooks.pfnServerActivate(nullptr, 0, 0);
+        post_hooks.pfnServerActivate(nullptr, 0, 0);
+        native_pass("native.entity.retired_arena.v1", "Discovery discarded a freed edict returned after map retirement without publishing a stale snapshot");
         args[1] = "7";
         string_transition = true;
         entities_command();

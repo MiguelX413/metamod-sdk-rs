@@ -45,6 +45,9 @@ CONTRACTS = {
 OBSERVATION_TESTS = {"lag.post.v1", "player.identity.v1", "trace.line.v1", "trace.hull.v1"}
 MAP_PROBES = {"map.deactivate.v1", "map.activate.v1", "map.order.v1", "map.stale.v1"}
 NATIVE_SUITE = {
+    "native.entity.retired_arena.v1",
+    "native.string.reentrant_invalidation.v1",
+    "native.cvar.retained_storage.v1",
     "native.command.snapshot_limits.v1",
     "native.dispatch.reentrant.v1",
     "native.entity.reentrant_map.v1",

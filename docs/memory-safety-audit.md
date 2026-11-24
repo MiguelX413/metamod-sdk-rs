@@ -73,6 +73,60 @@ one shared Clang sanitizer runtime. The existing CI matrix runs Rust
 ASan and LSan tests independently on Linux i686 and x86-64. These fixtures
 are synthetic. The Win32 ABI and loader job remains a separate check.
 
+## Memory Contracts Validation v1: initial probes
+
+`native.cvar.retained_storage.v1` is a synthetic native loader probe. It saves
+pointers to the registered CVar record, name and initial default buffer before
+the fixture replaces the record's string pointer. After plugin shutdown it
+checks the record and both original strings, writes and restores one byte in
+the original default buffer, and only then emits its PASS record. The module
+stays loaded throughout; forced unloading remains unsupported.
+
+The strict native importer requires this probe alongside the existing suite.
+Missing, duplicate, conflicting, malformed or unexpected records invalidate
+strict imports, as do sanitizer diagnostics and unsuccessful process exits.
+The `collect-native.sh` commands above exercise the probe in the existing
+Linux loader and combined sanitizer jobs; the shared Windows loader also
+executes it, with Windows execution still pending.
+
+This checks SDK retention under a controlled host that replaces the string
+pointer without freeing the initial allocation. Native hosts must honor the
+registration ownership contract and keep callback code loaded. It does not
+establish arbitrary pointer readability or ownership on a live engine.
+`native.string.reentrant_invalidation.v1` extends the existing Rust/Miri
+string invalidation scenario into the native loader. The CVar getter selects a
+heap string, synchronously invokes the SDK frame hook, frees the selected
+string, and returns its expired pointer. The command must report engine
+unavailability; a subsequent ordinary CVar read must succeed before PASS is
+emitted. Strict imports require this record exactly once, with regression
+cases for missing and duplicate evidence.
+
+The observed SDK callback invalidates the getter read even though the map and
+plugin remain active. The fixture intentionally returns an expired pointer to
+exercise rejection before dereference. C++ loader ASan can detect a read from
+this C++ allocation only when that read is instrumented; use the combined
+Rust-plugin ASan run to instrument the SDK's reads. The existing Miri mock
+provides separate Rust evidence. This does not cover unobserved native reentry:
+hosts still must preserve returned strings while Rust reads them.
+
+`native.entity.retired_arena.v1` adds native allocation retirement to the
+existing map-transition discovery checks. At slot 3 the lookup allocates an
+edict, notifies the SDK of map deactivation, frees that edict, and returns its
+expired pointer. Discovery must report the map change without publishing any
+snapshot. The fixture checks that this interruption occurred and reactivates
+the map before emitting PASS. Strict imports require the record exactly once;
+missing and duplicate records have dedicated rejection cases.
+
+This represents one retired arena element, rather than replacing the entire
+engine arena. Combined Rust/C++ ASan instruments the SDK reads that would
+otherwise touch the freed edict. Hosts must notify retirement before freeing
+arena storage, keep same-map identity fields readable, and maintain native
+serials correctly. Unobserved retirement remains outside this check.
+
+Run/build identity binding and the remaining versioned memory-contract probes
+are still pending; this increment does not complete the v1 profile or alter
+compatibility certification.
+
 ## Instrument an existing Linux matrix
 
 On the independent test host, install Valgrind with i386 Memcheck support
