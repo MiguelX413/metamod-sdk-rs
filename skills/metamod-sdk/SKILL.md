@@ -5,6 +5,10 @@ description: Build, update, or review GoldSrc Metamod plugins using metamod-sdk-
 
 # Metamod SDK plugins
 
+Use these instructions as a skill, project context, or an attached Markdown
+file. If file or command access is unavailable, ask for the relevant source
+or check output.
+
 Help the user implement their plugin with the SDK APIs available at their
 revision. Prefer the core wrappers. Keep experimental features and missing host
 evidence visible without blocking ordinary Rust-only work.
@@ -12,7 +16,7 @@ evidence visible without blocking ordinary Rust-only work.
 ## Resolve the SDK and host
 
 Inspect the consumer's `Cargo.toml`, `Cargo.lock`, enabled features, and existing
-plugin code. Locate the matching SDK checkout or dependency source. This skill
+plugin code. Locate the matching SDK checkout or dependency source. This file
 ships at `skills/metamod-sdk` in the SDK repository; the links below resolve
 from there. If installed elsewhere, resolve those paths against the matching SDK
 root rather than the skill's installation directory. Do not assume the consumer's
@@ -130,6 +134,6 @@ placement against the runtime, especially registration during attach.
 
 Distinguish compilation, mock/fixture checks, and live observations in the
 result. State which host/feature remains unverified and which checks were
-actually run. A skill invocation does not authorize SSH, deployment, client
+actually run. These instructions do not authorize SSH, deployment, client
 control, or overwriting a server installation; live testing needs the user's
 applicable authorization and isolated installations.

@@ -98,10 +98,11 @@ Native user-message sending requires an explicit unsafe host opt-in; see
 
 ## Use with a coding assistant
 
-The [Metamod SDK skill](skills/metamod-sdk/SKILL.md) guides API selection,
-callback lifecycles, and host support checks. Ask your assistant to read that
-file when working from this checkout. To install it in Codex, copy the
-`skills/metamod-sdk` folder to your Codex skills directory (normally
-`~/.codex/skills/`), then invoke `$metamod-sdk`. Keep the matching SDK sources
-available: the skill reads their support matrix, Rustdoc, and examples rather
-than bundling a second copy of them.
+Give your assistant the [Metamod SDK skill](skills/metamod-sdk/SKILL.md) as
+project instructions, an attached file, or a skill in its supported format.
+It guides API selection, callback lifecycles, and host support checks without
+requiring a particular model or editor. Installation and invocation depend on
+the assistant; the Markdown body can also be used directly.
+
+Keep the matching SDK sources available: the instructions read their support
+matrix, Rustdoc, and examples rather than bundling a second copy of them.
