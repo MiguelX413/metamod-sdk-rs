@@ -11,6 +11,7 @@ The [release roadmap](roadmap.md) lists the work required before release.
 | --- | --- | --- |
 | Plugin registration and runtime | Core | Attribute registration with default features; manual `Metadata` and `export_plugin!` with default features disabled. Startup loading only, server-thread state, deferred owned notifications, panic containment, and optional shutdown delivery. |
 | Console, commands, and CVars | Core | Validated names and values, owned command tokens and CVar reads, bounded permanent registrations. Register once from an attached callback, not `initialize`. |
+| Server timing and game state | Core API; candidate validation pending | Active-map owned snapshots, optional fields for invalid native values, and numeric GameDLL-defined modes. Linux development results are recorded below; Win32 validation remains pending. |
 | Player identity and information | Core | Distinct slot, native user ID, and tracked session types; owned information snapshots. Tracking covers observed joins. Revalidate saved sessions. |
 | Entity discovery and snapshots | Core | Map epochs and native serials, bounded index lookup, owned common fields and strings. No general entity mutation or GameDLL-private data access. |
 | Line and standard hull traces | Core | Finite endpoints, validated skip identity, owned results. A missing hit handle does not imply no collision. |
@@ -50,14 +51,14 @@ support policy, independently of whether a particular test passed.
 
 All rows below are Linux i686 with stock Ricochet unless stated otherwise.
 
-| Engine and manager | Core v2 compatibility | Client admission | Ricochet fake-client lifecycle | TextMsg / ScreenFade delivery |
-| --- | --- | --- | --- | --- |
-| Valve HLDS 8684 + classic Metamod 1.21.1-am | Recorded [C] | Recorded [A] | Recorded [F] | Recorded, experimental sender [M] |
-| ReHLDS 3.15.0.896-dev + classic Metamod 1.21.1-am | Recorded [C] | Unverified | Recorded [F] | Recorded, experimental sender [M] |
-| ReHLDS 3.15.0.896-dev + Metamod-R 1.3.0.149 | Recorded [C] | Recorded [A] | Unverified | Recorded, experimental sender [M] |
-| Valve HLDS + Metamod-R | Unverified; experimental host combination | Unverified | Unverified | Unverified |
-| Windows x86 host combinations | Unverified live | Unverified | Unverified | Unverified |
-| Other GameDLLs or host versions | Unverified | Unverified | Unverified | Unverified |
+| Engine and manager | Core v2 compatibility | Client admission | Ricochet fake-client lifecycle | TextMsg / ScreenFade delivery | Server-state snapshots |
+| --- | --- | --- | --- | --- | --- |
+| Valve HLDS 8684 + classic Metamod 1.21.1-am | Recorded [C] | Recorded [A] | Recorded [F] | Recorded, experimental sender [M] | Development observations [S] |
+| ReHLDS 3.15.0.896-dev + classic Metamod 1.21.1-am | Recorded [C] | Unverified | Recorded [F] | Recorded, experimental sender [M] | Development observations [S] |
+| ReHLDS 3.15.0.896-dev + Metamod-R 1.3.0.149 | Recorded [C] | Recorded [A] | Unverified | Recorded, experimental sender [M] | Development observations [S] |
+| Valve HLDS + Metamod-R | Unverified; experimental host combination | Unverified | Unverified | Unverified | Unverified |
+| Windows x86 host combinations | Unverified live | Unverified | Unverified | Unverified | Unverified |
+| Other GameDLLs or host versions | Unverified | Unverified | Unverified | Unverified | Unverified |
 
 - **[C]** The [core v2 certificate](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
   records six Ubuntu 26.04 configurations: the first three combinations with
@@ -75,6 +76,18 @@ All rows below are Linux i686 with stock Ricochet unless stated otherwise.
   These controlled deployments had no message-hook plugins. The sender and
   recorder came from an uncommitted development tree; their hashes identify
   the artifacts, not a clean build of current HEAD.
+- **[S]** [Server-state observations](runtime-audit.md#linux-server-state-observations)
+  recorded `server.state.v1` PASS on four map visits per host with the new
+  development build. All runs quit with exit zero and component identity
+  checks passed. The `server-state v1` evaluator returned **UNVERIFIED**
+  because the plugin source was dirty and the copied runner had no clean
+  checkout identity. These observations require clean-candidate reproduction.
+
+Server-state snapshots were added after the historical core v2 run.
+Their evidence comes from the new observations, separately from that
+certificate. The optional `server-state v1` profile requires the new
+probe on every map visit, in addition to core v2 evidence. Windows and
+other host/GameDLL combinations remain unverified for this API.
 
 The first three stock Ricochet rows are the proposed primary Linux release
 hosts. Each needs a clean candidate run for every core feature claimed on that

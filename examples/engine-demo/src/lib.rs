@@ -29,6 +29,7 @@ impl Plugin for EngineDemo {
         match command.name().as_c_str().to_bytes() {
             b"rust_entities" => show_entities(ctx, command),
             b"rust_trace" => show_trace(ctx),
+            b"rust_state" => show_state(ctx),
             b"rust_hello" => hello_message(ctx, command),
             _ => {}
         }
@@ -113,6 +114,11 @@ impl Plugin for EngineDemo {
             if let Err(error) = server.register_command(console_name!(c"rust_entities")) {
                 server.print(&c_string(format!(
                     "Could not register rust_entities: {error}\n"
+                )));
+            }
+            if let Err(error) = server.register_command(console_name!(c"rust_state")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_state: {error}\n"
                 )));
             }
             server.print(c"Rust Engine Demo first frame\n");
@@ -234,5 +240,14 @@ fn hello_message(ctx: &Context<'_>, command: &Command) {
         Err(error) => server.print(&c_string(format!(
             "Could not read rust_hello_message: {error}\n"
         ))),
+    }
+}
+
+fn show_state(ctx: &Context<'_>) {
+    match ctx.server().state() {
+        Some(state) => ctx
+            .server()
+            .print(&c_string(format!("Server state: {state:?}\n"))),
+        None => ctx.server().print(c"Server state unavailable\n"),
     }
 }

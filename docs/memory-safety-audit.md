@@ -38,6 +38,17 @@ was confirmed during this pass. The host obligations above are still
 prerequisites for soundness. Null and alignment checks do not establish
 pointer validity.
 
+The server-state snapshot reads only selected initialized globals on the
+owning thread after activation. It copies scalar values before any native
+call and resolves map/start strings through the existing bounded getter
+path. Observable reentry or map/shutdown invalidation discards the pending
+snapshot before reading a returned string pointer. The host must initialize
+these fields by post-activation, retain globals through shutdown, preserve
+same-map string indices, and keep returned strings readable through the
+first NUL or read limit while copying. Rust cannot detect hidden native
+invalidation. Private globals pointers, trace scratch state, and borrowed
+engine references are outside the API.
+
 ## Controlled Rust and native fixtures
 
 Initialize the pinned upstream submodules and install libclang as described

@@ -14,6 +14,8 @@ and use engine services through the SDK's wrappers.
   incoming connections.
 - Print to the console, log through Metamod, register server commands, and
   work with console variables.
+- Read server timing, capacities, map names, and game-mode values through
+  owned snapshots.
 - Find entities, inspect snapshots, and trace lines and hulls through the
   world. Player and entity handles help detect stale identities.
 

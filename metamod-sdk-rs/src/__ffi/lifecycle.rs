@@ -17,7 +17,10 @@ use std::thread;
 /// A non-null table must have aligned, readable, initialized callback
 /// slots. The first valid handoff binds the attachment to this server
 /// thread. The callbacks must remain callable on it through shutdown.
-/// Non-null globals must be aligned and readable through shutdown.
+/// Non-null globals must be aligned and readable through shutdown. By
+/// post-activation the host must initialize capacities and the fields exposed
+/// by ServerState. Its map string indices must remain valid for native lookup
+/// until map retirement.
 pub unsafe fn give_engine(table: *mut EngineFunctions, globals: *mut EngineGlobals) {
     let _ = contained(|| {
         if table.is_null() || !table.is_aligned() || !globals.is_aligned() {
@@ -33,7 +36,8 @@ pub unsafe fn give_engine(table: *mut EngineFunctions, globals: *mut EngineGloba
         // without borrowing the table, which may be shared by the loader.
         let engine = unsafe { Engine::read(table) };
         ENGINE.set(engine);
-        // SAFETY: The loader supplies the lifetime of the globals.
+        // SAFETY: The loader supplies globals with the lifetime and initialization
+        // contract above. Native field reads are deferred until map activation.
         unsafe { crate::trace::set_globals(globals) };
     });
 }

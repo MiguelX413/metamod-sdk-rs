@@ -2,6 +2,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <thread>
 #include <extdll.h>
@@ -122,6 +123,11 @@ static void set_cvar(const char *name, const char *value) {
     std::strcpy(cvar_value, value);
 }
 
+static void (*state_command)();
+static int state_prints;
+static bool invalid_state;
+static int state_unavailable;
+
 static void register_command(const char *name, void (*callback)()) {
     assert(callback);
 #if defined(__linux__)
@@ -137,6 +143,9 @@ static void register_command(const char *name, void (*callback)()) {
         if (std::strcmp(name, "mm_audit_report") == 0) slot = &audit_report;
         assert(slot && !*slot);
         *slot = callback;
+    } else if (std::strcmp(name, "rust_state") == 0) {
+        assert(!state_command);
+        state_command = callback;
     } else if (std::strcmp(name, "rust_trace") == 0) {
         assert(!trace_command);
         trace_command = callback;
@@ -189,10 +198,12 @@ static bool string_transition;
 
 static const char *string_from_index(int index) {
     static char value[32];
-    assert(index == 1 || index == 2 || index == -3);
+    assert(index == 1 || index == 2 || index == -3 || index == 10 || index == 11);
     if (string_transition) {
         hooks.pfnServerDeactivate();
     }
+    if (index == 10) return "fixture_map";
+    if (index == 11) return "fixture_start";
     std::strcpy(value, index == 1 ? "worldspawn" : index == 2 ? "player" : "demo_target");
     return value;
 }
@@ -269,6 +280,29 @@ static void server_print(const char *message) {
             post_hooks.pfnClientPutInServer(&player);
             assert(audit_logs == before);
         }
+        return;
+    }
+    if (std::strncmp(message, "Server state: ", 14) == 0) {
+        ++state_prints;
+        if (invalid_state) {
+            for (const char *field : {"{ time: None,", "frame_time: None,", "max_clients: None,", "max_entities: None,"})
+                assert(std::strstr(message, field));
+            return;
+        }
+        assert(std::strstr(message, "{ time: Some(12.5),"));
+        assert(std::strstr(message, "frame_time: Some(0.02)"));
+        assert(std::strstr(message, "max_clients: Some(7)"));
+        assert(std::strstr(message, "max_entities: Some(8)"));
+        assert(std::strstr(message, "map_name: Some(\"fixture_map\")"));
+        assert(std::strstr(message, "start_spot: Some(\"fixture_start\")"));
+        assert(std::strstr(message, "deathmatch: Some(2.5)"));
+        assert(std::strstr(message, "coop: Some(-1.0)"));
+        assert(std::strstr(message, "teamplay: Some(3.0)"));
+        assert(std::strstr(message, "server_flags: Some(16.0)"));
+        return;
+    }
+    if (std::strcmp(message, "Server state unavailable\n") == 0) {
+        ++state_unavailable;
         return;
     }
     if (expect_retired_edict) {
@@ -438,7 +472,7 @@ static void exercise_audit() {
     args[2] = nullptr;
     audit_report();
     assert(audit_output.find("\"result\":\"FAIL\"") == std::string::npos);
-    for (const char *expected : {"map.stale.v1", "player.reuse.v1", "entity.snapshot.v1",
+    for (const char *expected : {"server.state.v1", "map.stale.v1", "player.reuse.v1", "entity.snapshot.v1",
              "cvar.roundtrip.v1", "command.arguments.v1", "trace.line.v1",
              "trace.hull.v1", "resources.repeat.v1"}) {
         assert(audit_output.find(std::string("\"test\":\"") + expected + "\",\"result\":\"PASS\"") != std::string::npos);
@@ -507,6 +541,14 @@ int main(int argc, char **argv) {
     globalvars_t engine_globals{};
     engine_globals.maxEntities = 8;
     engine_globals.maxClients = 7;
+    engine_globals.time = 12.5f;
+    engine_globals.frametime = 0.02f;
+    engine_globals.mapname = 10;
+    engine_globals.startspot = 11;
+    engine_globals.deathmatch = 2.5f;
+    engine_globals.coop = -1.0f;
+    engine_globals.teamplay = 3.0f;
+    engine_globals.serverflags = 16.0f;
     player.v.origin.x = 1;
     player.v.origin.y = 2;
     player.v.origin.z = 3;
@@ -635,6 +677,30 @@ int main(int argc, char **argv) {
         assert(globals.mres == MRES_IGNORED);
     }
     if (engine_demo) {
+        assert(state_command);
+        args[0] = "rust_state";
+        args[1] = nullptr;
+        state_command();
+        assert(state_prints == 1);
+        invalid_state = true;
+        engine_globals.time = std::numeric_limits<float>::quiet_NaN();
+        engine_globals.frametime = -1.0f;
+        engine_globals.maxClients = -1;
+        engine_globals.maxEntities = 0;
+        state_command();
+        assert(state_prints == 2);
+        invalid_state = false;
+        engine_globals.time = 12.5f;
+        engine_globals.frametime = 0.02f;
+        engine_globals.maxClients = 7;
+        engine_globals.maxEntities = 8;
+        string_transition = true;
+        state_command();
+        assert(state_unavailable == 1);
+        string_transition = false;
+        hooks.pfnServerActivate(nullptr, 0, 0);
+        post_hooks.pfnServerActivate(nullptr, 0, 0);
+        args[0] = "rust_hello";
         assert(logged == 4);
         globals.mres = MRES_UNSET;
         post_hooks.pfnClientPutInServer(nullptr);
@@ -717,6 +783,10 @@ int main(int argc, char **argv) {
         hooks.pfnServerActivate(nullptr, 0, 0);
         hooks.pfnServerActivate(nullptr, 0, 0);
         post_hooks.pfnServerActivate(nullptr, 0, 0);
+        args[0] = "rust_state";
+        state_command();
+        assert(state_unavailable == 2);
+        args[0] = "rust_trace";
         expect_inactive_trace = true;
         trace_command();
         assert(!expect_inactive_trace && logged == 13);

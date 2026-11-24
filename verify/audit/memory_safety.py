@@ -129,6 +129,7 @@ def markdown(report):
 
 
 MIRI_SCENARIOS = (
+    "__ffi::tests::server_state_copies_globals_and_rejects_interrupted_strings",
     "hooks::tests::borrowed_reasons_keep_the_source_pointer",
     "__ffi::tests::borrowed_admission_is_snapshotted_before_deferred_mutation_and_shutdown",
     "__ffi::tests::borrowed_admission_is_discarded_after_deferred_panic",

@@ -18,13 +18,15 @@ PLAYER = CORE | frozenset("""
 """.split())
 PROFILES = {
     "core": CORE,
+    "server-state": CORE | {"server.state.v1"},
     "player": PLAYER,
     "extended": PLAYER | {"entity.keyvalue_hook.v1", "lag.pre.v1", "lag.post.v1", "resources.repeat.v1"},
 }
-PROFILE_VERSIONS = {"core": 2, "player": 2, "extended": 2}
+PROFILE_VERSIONS = {"core": 2, "player": 2, "extended": 2, "server-state": 1}
 MAP_SUITE_PROBES = frozenset({"entity.discovery.v1", "entity.snapshot.v1", "trace.line.v1", "trace.hull.v1"})
 # Freeze the catalog contracts without duplicating their descriptive text.
 EXPECTATION_SHA256 = {
+    "server.state.v1": "7e67299495b2f0e2f23e22b2692c048112f560e67fa843c2e4c153c0bc958b84",
     "command.arguments.v1": "1fb0a04e02e3f96631084125add940231cb91f201e79cce8f3ad4d53cac76046",
     "commands.register.v1": "cec78d7a41334cd8c0571dcfa5605dfe5397601be6d27425ea502f8edc92f295",
     "cvar.roundtrip.v1": "3a3f5c04502d6774befe6957373a4f6e7e8439c9f192940166bc095fab525a82",
@@ -81,7 +83,11 @@ def event_records(run, path, parse_event):
     return records
 
 
-def check_lifecycle(run, runtime, records, incomplete):
+def map_suite_probes(profile):
+    return MAP_SUITE_PROBES | ({"server.state.v1"} if profile == "server-state" else set())
+
+
+def check_lifecycle(run, runtime, records, incomplete, map_probes=MAP_SUITE_PROBES):
     ready = [e for e in records if e["kind"] == "ready"]
     statuses = [e["seq"] for e in records if e["kind"] == "status"]
     suites = [e["seq"] for e in records if e["kind"] == "suite_complete" and e["suite"] == "all"]
@@ -115,8 +121,8 @@ def check_lifecycle(run, runtime, records, incomplete):
         if any(e.get("test") in {"map.activate.v1", "map.deactivate.v1"} for e in window):
             incomplete.append(f"Map visit {index + 1} changed maps during its suite.")
         passed = {e["test"] for e in window if e.get("result") == "PASS"
-                  and e.get("test") in MAP_SUITE_PROBES and canonical(e)}
-        if missing := MAP_SUITE_PROBES - passed:
+                  and e.get("test") in map_probes and canonical(e)}
+        if missing := map_probes - passed:
             incomplete.append(f"Map visit {index + 1} to {itinerary[index]} lacks PASS for {', '.join(sorted(missing))}.")
         activation_floor = lower if index else 0
         if not any(activation_floor < e["seq"] <= start and e.get("test") == "map.activate.v1"
@@ -218,7 +224,7 @@ def evaluate_run(run, report_path, profile, protocol, parse_event):
                 incomplete.append(f"{test}: need a corroborated plugin PASS (found {probes[test]['result']}).")
             elif not supported and result.get("source") != "plugin":
                 unverified.append(f"{test}: manual failure is not a live probe observation.")
-        check_lifecycle(run, runtime, records, incomplete)
+        check_lifecycle(run, runtime, records, incomplete, map_suite_probes(profile))
 
         components = runtime.get("components", {})
         runner_revision = runtime.get("runner_revision", {})

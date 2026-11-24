@@ -38,3 +38,5 @@ include!("fake_clients.rs");
 include!("hooks.rs");
 include!("dispatch.rs");
 include!("lifecycle.rs");
+
+include!("server_state.rs");

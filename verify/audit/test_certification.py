@@ -68,7 +68,7 @@ class CertificationTests(unittest.TestCase):
         for test in ("map.deactivate.v1", "map.stale.v1", "map.activate.v1", "map.order.v1"):
             probe(test)
         last = len(events)
-        for test in sorted(certification.MAP_SUITE_PROBES - set(later_omit)):
+        for test in sorted(certification.map_suite_probes(profile) - set(later_omit)):
             probe(test)
         second_suite = emit("suite_complete", suite="all")
         emit("report", complete=True)
@@ -125,6 +125,36 @@ class CertificationTests(unittest.TestCase):
         rendered = certification.markdown(certificate)
         self.assertIn(f"- Binary `engine` SHA-256: `{'a' * 64}`", rendered)
         self.assertNotIn("Engine module", rendered)
+
+    def test_server_state_profile_requires_canonical_evidence_on_every_map(self):
+        self.assertEqual(certification.PROFILE_VERSIONS["core"], 2)
+        self.assertEqual(certification.PROFILE_VERSIONS["server-state"], 1)
+        core = self.collect("old-core")
+        self.assertEqual(self.verdict(core), "CERTIFIED")
+        self.assertEqual(self.verdict(core, "server-state"), "INCOMPLETE")
+        complete = self.collect("state-complete", profile="server-state")
+        self.assertEqual(self.verdict(complete, "server-state"), "CERTIFIED")
+        for name, kwargs, outcome in [
+            ("missing", {"omit": {"server.state.v1"}}, "INCOMPLETE"),
+            ("later", {"later_omit": {"server.state.v1"}}, "INCOMPLETE"),
+            ("altered", {"altered": "server.state.v1"}, "UNVERIFIED"),
+            ("failed", {"failures": {"server.state.v1"}, "later_omit": {"server.state.v1"}}, "FAILED"),
+        ]:
+            run = self.collect(name, profile="server-state", **kwargs)
+            self.assertEqual(self.verdict(run, "server-state"), outcome)
+
+    def test_server_state_cli_and_windows_policy(self):
+        run = self.collect("state-windows", profile="server-state", windows=True)
+        self.assertEqual(self.verdict(run, "server-state"), "CERTIFIED")
+        output = self.root / "state-certificate"
+        completed = subprocess.run(
+            [sys.executable, runner.__file__, "certify", str(self.report), "server-state", str(output)],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        certificate = json.loads((output / "certificate.json").read_text())
+        self.assertEqual(certificate["profile"]["version"], 1)
+        self.assertIn("server.state.v1", certificate["profile"]["required_probes"])
 
     def test_profiles_are_cumulative_and_windows_is_supported(self):
         core = self.collect("core")

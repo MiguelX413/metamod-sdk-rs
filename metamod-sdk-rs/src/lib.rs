@@ -53,6 +53,7 @@
 //! | Keep a player selection across callbacks | [`Context::player_at`], [`PlayerId`] |
 //! | Copy player information | [`Context::player_info`] |
 //! | Discover entities and copy their properties | [`Context::entities`], [`Context::entity_info`], [`Context::entity_spatial`] |
+//! | Read server timing and map/game state | [`Server::state`], [`ServerState`] |
 //! | Trace geometry | [`Server::trace_line`], [`Server::trace_hull`] |
 //! | Reject a connection | [`ClientAdmission`] |
 //! | Observe map keyvalues | [`KeyValueEvent`] |
@@ -133,6 +134,7 @@ mod engine;
 mod hooks;
 mod message;
 mod runtime;
+mod server_state;
 mod trace;
 
 #[cfg(all(test, metamod_lsan))]
@@ -160,6 +162,7 @@ pub use message::{
     MessageSendError, MessageSender, RegisteredUserMessage, StaleMessageRecipient,
     UserMessagePayload, UserMessageSize,
 };
+pub use server_state::ServerState;
 pub use trace::{
     EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial, Hull,
     TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
@@ -184,9 +187,9 @@ pub mod prelude {
         MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError, MessageRecipient,
         MessageSendError, MessageSender, MetaMod, Metadata, MetamodMessage, MetamodMessageTooLong,
         OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId, Plugin, PostHookResult,
-        RegisteredUserMessage, Server, StaleMessageRecipient, TraceError, TraceMonsters,
-        TraceOptions, TracePlane, TraceResult, TraceSegment, UserMessagePayload, UserMessageSize,
-        console_name, cvar_value, export_plugin,
+        RegisteredUserMessage, Server, ServerState, StaleMessageRecipient, TraceError,
+        TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment, UserMessagePayload,
+        UserMessageSize, console_name, cvar_value, export_plugin,
     };
 }
 

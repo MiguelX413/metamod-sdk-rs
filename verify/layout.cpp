@@ -76,6 +76,15 @@ int main() {
     std::printf("serialnumber %zu\n", offsetof(edict_t, serialnumber));
     std::printf("trace_size %zu\n", sizeof(TraceResult));
     std::printf("edict_size %zu\n", sizeof(edict_t));
+    std::printf("global_size %zu %zu\n", sizeof(globalvars_t), alignof(globalvars_t));
+    std::printf("global_time %zu\n", offsetof(globalvars_t, time));
+    std::printf("global_frametime %zu\n", offsetof(globalvars_t, frametime));
+    std::printf("global_mapname %zu\n", offsetof(globalvars_t, mapname));
+    std::printf("global_startspot %zu\n", offsetof(globalvars_t, startspot));
+    std::printf("global_deathmatch %zu\n", offsetof(globalvars_t, deathmatch));
+    std::printf("global_coop %zu\n", offsetof(globalvars_t, coop));
+    std::printf("global_teamplay %zu\n", offsetof(globalvars_t, teamplay));
+    std::printf("global_serverflags %zu\n", offsetof(globalvars_t, serverflags));
     std::printf("spatial_maxEntities %zu\n", offsetof(globalvars_t, maxEntities));
     std::printf("spatial_maxClients %zu\n", offsetof(globalvars_t, maxClients));
     std::printf("spatial_v %zu\n", offsetof(edict_t, v));

@@ -95,6 +95,10 @@ const SNAPSHOT: Probe = Probe {
     id: "entity.snapshot.v1",
     expected: "world spatial and keyvalue snapshots refer to the same handle",
 };
+const SERVER_STATE: Probe = Probe {
+    id: "server.state.v1",
+    expected: "active-map globals provide validated timing, capacities, modes, and an owned map name",
+};
 const CVARS: Probe = Probe {
     id: "cvar.roundtrip.v1",
     expected: "private CVar registers and round-trips a write",
@@ -338,6 +342,25 @@ impl Audit {
         }
     }
 
+    fn server_state(&mut self, ctx: &Context<'_>) {
+        let state = ctx.server().state();
+        let valid = state.as_ref().is_some_and(|state| {
+            state.time.is_some()
+                && state.frame_time.is_some()
+                && state.max_clients.is_some()
+                && state.max_entities.is_some()
+                && state.deathmatch.is_some()
+                && state.coop.is_some()
+                && state.teamplay.is_some()
+                && state.server_flags.is_some()
+                && state
+                    .map_name
+                    .as_ref()
+                    .is_some_and(|name| !name.to_bytes().is_empty())
+        });
+        self.check(ctx, SERVER_STATE, valid, format!("{state:?}"));
+    }
+
     fn entities(&mut self, ctx: &Context<'_>) {
         let world = ctx.entity_at(0);
         let entities = ctx.entities();
@@ -500,18 +523,20 @@ impl Plugin for Audit {
                     b"all" => {
                         self.console(ctx);
                         self.entities(ctx);
+                        self.server_state(ctx);
                         self.traces(ctx);
                         self.repeat(ctx);
                     }
                     b"console" => self.console(ctx),
                     b"entities" => self.entities(ctx),
+                    b"state" => self.server_state(ctx),
                     b"trace" => self.traces(ctx),
                     b"resources" => self.repeat(ctx),
                     _ => {
                         self.emit(
                             Some(ctx),
                             "usage",
-                            ",\"suites\":\"all console entities trace resources\"",
+                            ",\"suites\":\"all console entities state trace resources\"",
                         );
                         return;
                     }

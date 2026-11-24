@@ -22,7 +22,10 @@ thread_local! {
 /// # Safety
 /// Non-null globals must be aligned and kept allocated through shutdown.
 /// The host must initialize both capacities before each
-/// post-activation hook and confine accesses to the server thread.
+/// post-activation hook and confine accesses to the server thread. The timing,
+/// mode, flags, and map string-index fields exposed by ServerState must also
+/// be initialized by post-activation. Map string indices must remain valid
+/// for native lookup until map retirement.
 pub(crate) unsafe fn set_globals(globals: *mut EngineGlobals) {
     GLOBALS.set(globals);
 }
@@ -49,16 +52,28 @@ pub(crate) fn activate_map() {
                     ptr::addr_of!((*globals).maxClients).read(),
                 )
             };
-            if (1..=MAX_EDICT_CAPACITY).contains(&capacity) {
-                LIMIT.set(capacity);
-                if (1..capacity).contains(&clients) {
-                    CLIENT_LIMIT.set(clients);
-                }
-            }
+            let (entities, clients) = validated_capacities(capacity, clients);
+            LIMIT.set(entities.unwrap_or(0));
+            CLIENT_LIMIT.set(clients.unwrap_or(0));
         }
     } else {
         invalidate_map();
     }
+}
+
+pub(crate) fn validated_capacities(entities: i32, clients: i32) -> (Option<i32>, Option<i32>) {
+    let entities = (1..=MAX_EDICT_CAPACITY)
+        .contains(&entities)
+        .then_some(entities);
+    let clients = entities.and_then(|limit| (1..limit).contains(&clients).then_some(clients));
+    (entities, clients)
+}
+
+// Callers copy selected initialized fields before making any native call.
+pub(crate) fn active_globals() -> Option<(u64, *mut EngineGlobals)> {
+    let map = active_map()?;
+    let globals = GLOBALS.get();
+    (!globals.is_null() && globals.is_aligned()).then_some((map, globals))
 }
 
 pub(crate) fn active_map() -> Option<u64> {

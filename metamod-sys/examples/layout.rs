@@ -185,6 +185,25 @@ fn main() {
     println!("trace_size {}", size_of::<raw::TraceResult>());
     println!("edict_size {}", size_of::<raw::edict_t>());
     println!(
+        "global_size {} {}",
+        size_of::<EngineGlobals>(),
+        align_of::<EngineGlobals>()
+    );
+    println!("global_time {}", offset_of!(EngineGlobals, time));
+    println!("global_frametime {}", offset_of!(EngineGlobals, frametime));
+    println!("global_mapname {}", offset_of!(EngineGlobals, mapname));
+    println!("global_startspot {}", offset_of!(EngineGlobals, startspot));
+    println!(
+        "global_deathmatch {}",
+        offset_of!(EngineGlobals, deathmatch)
+    );
+    println!("global_coop {}", offset_of!(EngineGlobals, coop));
+    println!("global_teamplay {}", offset_of!(EngineGlobals, teamplay));
+    println!(
+        "global_serverflags {}",
+        offset_of!(EngineGlobals, serverflags)
+    );
+    println!(
         "spatial_maxEntities {}",
         offset_of!(raw::globalvars_t, maxEntities)
     );

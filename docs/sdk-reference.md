@@ -96,6 +96,35 @@ Parse UTF-8 input with `text.parse::<PlayerSlot>()` or
 including overflow. `Invalid` reports a parsed zero or negative value.
 For native command arguments, call `arg.to_str()` before parsing.
 
+### Server timing and game state
+
+Call `ctx.server().state()` for an owned `ServerState` snapshot on an
+active map. It is available after the outermost post-activation hook and
+before deactivation or shutdown. Calls during initialization or map loading
+return `None`. A deferred event observes the currently active map when
+the API is called, which may differ from the event's original map.
+
+| Field | Meaning |
+| --- | --- |
+| `time` | Native simulation/map time in seconds, kept as `f32`. It can reset, jump, or lose precision. It is not wall-clock time or a monotonic process timer. Finite negative values are preserved. |
+| `frame_time` | Native frame duration in seconds. Zero is valid. It does not establish a fixed tick rate or CPU execution time. Negative and non-finite values are absent. |
+| `max_clients`, `max_entities` | Advertised capacities, rather than current occupancy. Entities include the world slot. The SDK accepts 1–65,536 entities and positive client capacity smaller than entity capacity. Invalid values become absent. Entity lookup still uses its existing post-activation capacity snapshot. |
+| `map_name`, `start_spot` | Owned native C strings. Starting-spot meaning is GameDLL-defined. Zero indices, absent getters, null results, and strings without a NUL within 4,096 bytes become absent. An empty string is preserved. |
+| `deathmatch`, `coop`, `teamplay` | Native numeric mode indicators. Finite values, including fractional and negative values, are preserved. They do not establish game rules, teams, or mutually exclusive modes. |
+| `server_flags` | Native float-valued game/server flags. The SDK imposes no bit layout or integer conversion. |
+
+NaN and infinity become `None` in float fields. The snapshot itself is
+`None` when globals are unavailable or a string lookup is observably
+interrupted by reentry, map change, or shutdown. All scalars are copied
+before string resolution; each string is copied before the next native
+call. Snapshot values can be stored after the map ends, but do not keep
+that map active or authorize later native operations. Native code must
+keep globals initialized and string ranges readable during these reads.
+
+Run `rust_state` in the engine demo to print a snapshot. The
+`server.state.v1` audit probe and optional `server-state v1` profile
+cover the feature. [Audit procedure](runtime-audit.md#server-state-validation)
+
 ### Console output
 
 Use `ctx.server().print(&CStr)` for console messages within a callback. Use a
@@ -401,7 +430,7 @@ engine-demo shows explicit attribute arguments.
 For a live smoke test, use a disposable server on each platform and record
 the engine and Metamod versions. Start with the demo configured at startup,
 confirm `meta list` reports it running, then run `rust_hello`,
-`rust_hello "test value"`, `rust_entities 0`, and `rust_trace` from the
+`rust_hello "test value"`, `rust_entities 0`, `rust_state`, and `rust_trace` from the
 server console. Connect, disconnect, and reconnect a client. Check that the
 demo reports the new join and that the server continues serving frames.
 Use `changelevel` to load another installed map and repeat the commands.

@@ -178,7 +178,7 @@ runner checkout. [Memory-safety audit guide](memory-safety-audit.md#instrument-a
 
 The profile is the applicability rule. Player and gameplay probes are
 outside core's mandatory scope. Hooks measured only by the native fixture
-are outside all three live profiles. If a profile requires a hook and the
+are outside the live compatibility profiles. If a profile requires a hook and the
 host never forwards it, that profile remains incomplete even if the host
 intentionally omits the hook. A skipped or unobserved hook does not
 establish whether the host supports it. Use a narrower profile to make a
@@ -231,6 +231,86 @@ report. A certificate records the identities, hashes, profile, and evidence
 for the exact binaries and tested itinerary. It establishes neither
 compatibility across other configurations nor memory safety or compliance
 with all native host contracts.
+
+### Server-state validation
+
+The optional `server-state v1` profile adds `server.state.v1` to the
+core v2 requirements. It requires a canonical plugin PASS inside the
+all-suite window on every map visit. Missing, skipped, altered, or synthetic
+evidence cannot satisfy it. Core/player/extended v2 requirements and
+historical certificates keep their original scope.
+
+The probe checks that active-map snapshots contain validated time/frame
+duration, capacities, finite mode/flag values, and an owned nonempty map
+name. It reports the snapshot as bounded diagnostic text. It does not
+prove clock monotonicity, wall-clock correspondence, GameDLL mode semantics,
+or native pointer validity. A starting spot may legitimately be absent.
+Malformed values and reentry/lifecycle rejection are tested separately
+with controlled Rust and native fixtures.
+
+Build the updated audit plugin for the target and record its actual build
+revision, dirty state, and SHA-256. Run a fresh isolated matrix with that
+binary and at least two distinct maps. Keep the original reports and
+plugin provenance intact. The `all` suite includes the new probe;
+`mm_audit_run state` exercises it separately for diagnosis.
+
+```bash
+python3 verify/audit/runner.py run /path/to/updated-matrix.json /path/to/new-report --platform linux
+python3 verify/audit/runner.py certify /path/to/new-report/report.json server-state /path/to/new-certificate
+```
+
+The same profile is available on Windows and through the Ubuntu wrapper's
+`--certify server-state` option. Rebuilds require a new matrix/artifact
+manifest; a pinned rerun cannot substitute a different plugin silently.
+An old plugin can still be evaluated under core v2, but its missing state
+probe leaves `server-state v1` incomplete. The development observations
+below did not qualify for certification.
+
+#### Linux server-state observations
+
+The new probe ran on November 24, 2026, with stock Ricochet on fresh copies
+of the saved installations. The itinerary was `rc_arena`,
+`rc_deathmatch`, `rc_arena`, `rc_deathmatch`. No client was needed.
+
+| Linux i686 host | State probe | Component identity checks | Shutdown |
+| --- | --- | --- | --- |
+| Valve HLDS 8684 + classic Metamod 1.21.1-am | PASS on all four visits | PASS | quit, exit 0 |
+| ReHLDS 3.15.0.896-dev + classic Metamod 1.21.1-am | PASS on all four visits | PASS | quit, exit 0 |
+| ReHLDS 3.15.0.896-dev + Metamod-R 1.3.0.149 | PASS on all four visits | PASS | quit, exit 0 |
+
+The observations included time resetting to 1.0 on replacement maps,
+frame duration reaching 0.8 seconds, client capacity 6, entity capacity
+975, and the corresponding map names. The probe's finite mode/flag checks
+passed; their values remain GameDLL-defined. Empty starting-spot strings
+were preserved. Diagnostic text is bounded, so a report line may truncate
+the formatted snapshot.
+
+The audit command exited zero. Evaluation under `server-state v1` exited
+one and marked all rows **UNVERIFIED**, with no failed or incomplete
+requirements: the build manifest explicitly recorded dirty plugin source,
+and the standalone copied runner had no clean checkout identity.
+The runs were uninstrumented; memory safety and Windows behavior remain
+outside these observations.
+
+Evidence remains under `~/server-state-audit.K1HeTV/` on the audit host.
+It includes the selected matrix, plugin build manifest with source digests,
+copied runner/catalog bundle, report, event logs, and rejected certification
+evaluation. Isolated server copies were removed after execution; source
+installations and older reports remain intact.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Audit plugin | `3dc220c1f4a751ca538cae65c7561de1ab5ceca8e138d98480a3a8bfd072fe82` |
+| Report | `7bddf52b1416b624d7aafdfd2254d1d6434e590b3cc2b0a348fbfa5cb0721b24` |
+| Certification evaluation | `cc7034903675e3f33c8e790e815171ca18016659d888bf53e1cec2eb5c4b7c86` |
+| Copied runner/catalog/plugin bundle | `6d3179fbf457ab188358a1c1ca0cf8aae160272251967a979d7b08ae516ccb43` |
+| Valve/classic event log | `6e1f4e0e0a9912136da79fc592e412fdb14891a6aeaec6e67e0c67d79db2a475` |
+| ReHLDS/classic event log | `5998e5c92f5ed5a1757bb2b69047666d957f0a46dedf271b0f12dcf7155e47a3` |
+| ReHLDS/Metamod-R event log | `ede3d9bdc1d99952b777860e0dfa2f94f7933fa965118763f2db435b65fb41cc` |
+
+Component hashes and console/mapping evidence are in the report.
+The retained files have not been exported as a public offline-verifiable
+bundle.
 
 ### Publish replayable certification evidence
 

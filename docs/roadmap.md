@@ -10,12 +10,12 @@ proposes the initial scope; release dates remain open.
 | Area | Implemented or recorded | Remaining boundary |
 | --- | --- | --- |
 | Plugin runtime | Startup registration, stateful callbacks, typed hook outcomes, panic containment, deferred owned notifications, shutdown handling | Preserve server-thread ownership, native reentry rules, startup-only loading, `PT_NEVER`, and detach refusal. |
-| Engine services | Console/log output, commands, CVars, player sessions and information, entity discovery and snapshots, line/hull traces | General entity mutation, movement, networking, sound, events, and resource services remain largely raw. |
+| Engine services | Console/log output, commands, CVars, owned server timing/game-state snapshots, player sessions and information, entity discovery and snapshots, line/hull traces | General entity mutation, movement, networking, sound, events, and resource services remain largely raw. |
 | Fake clients | Scoped identity, queued removal, separate stock Ricochet adapter; recorded Linux setup/reentry/reuse results | Other GameDLL setup contracts and Win32 live behavior remain unverified. |
 | User messages | Bounded owned payloads, registration and recipient validation, conditional unsafe reliable unicast | Exact TextMsg/ScreenFade delivery is recorded for three Linux deployments. Win32 delivery and arbitrary schemas remain unverified. |
 | Compatibility | Historical core v2 certificate for six identified Linux Ricochet configurations | This does not certify every current SDK feature, a later build, or Windows. |
 | Memory evidence | Rust mocks/Miri, native adversarial probes, sanitizer tooling, Linux run/build binding | Remaining memory-contract probes and assessment policy; Windows provenance binding; live instrumented evidence. |
-| Documentation | SDK guide, investigations, Rustdoc examples, missing-docs enforcement, HTML artifact/Pages workflow | Release support policy, migration guidance, and packaged documentation/build verification. |
+| Documentation | SDK reference, investigations, Rustdoc examples, missing-docs enforcement, HTML artifact/Pages workflow | Release support policy, migration guidance, and packaged documentation/build verification. |
 | Distribution | Workspace builds from initialized pinned submodules | Public crates have `publish = false`; registry packaging and docs.rs builds are unresolved. |
 
 The [coverage matrix](api-coverage.md) is the interface inventory. The
