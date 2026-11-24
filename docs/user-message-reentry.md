@@ -1,5 +1,10 @@
 # GoldSrc user-message reentry
 
+For plugin use, start with the [scoped sender](#scoped-sender). See
+[delivery results](#live-scoped-send-delivery-on-linux) and
+[reproduction steps](#reproduce-delivery) for the client tests.
+The [ownership investigation](#exclusive-ownership-investigation) explains the unsafe host contract.
+
 ## Live Linux i686 observations
 
 The disposable GameDLL opened a message, wrote one byte through Metamod,

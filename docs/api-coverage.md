@@ -1,5 +1,9 @@
 # API coverage
 
+The [support matrix](support-matrix.md) defines proposed release scope and
+host evidence; the [roadmap](roadmap.md) tracks remaining work. This page lists
+interface coverage and feature results.
+
 The pinned headers in `upstream/` are the slot-by-slot inventory. This matrix
 tracks SDK support by interface and safety contract. A generated table exposes its
 function pointers through `metamod_sys::raw`; it does not imply that its
@@ -46,18 +50,7 @@ return `EngineError::Unavailable`.
   copies before another native call and revalidate identities after calls
   that can reenter. Keep map, callback, and engine lifetimes distinct.
 
-## Next milestones
-
-1. Finish live client admission verification on Win32. Linux i686 passed
-   deferral, rejection, and reconnect on Valve HLDS with classic Metamod
-   and on ReHLDS with Metamod-R. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
-2. Finish Win32 verification for [fake-client lifecycle management](#fake-client-lifecycle-management).
-3. Finish Win32 verification for [validated user messages](#validated-user-messages).
-   Then audit movement and physics and expand
-   raw payload coverage family by family.
-4. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
-   using the existing native fixtures, runtime reports, and certification
-   infrastructure.
+## Feature results
 
 ### Fake-client lifecycle management
 
@@ -113,75 +106,15 @@ and normal shutdown evidence as in the Linux runs.
 
 ### Memory Contracts Validation v1
 
-1. **Exercise native lifetime boundaries.** Add versioned adversarial probes
-   for string invalidation during reentry, edict reuse and arena retirement,
-   trace invalidation, nested shutdown and hook-result storage, and retained
-   CVar registration storage. Each probe must report its result after its
-   assertions complete. Document which invalidations the SDK can observe and
-   which lifetime guarantees the host must uphold.
-2. **Make fixture evidence reproducible.** Extend the native importer to
-   enforce the required probe set and reject missing, duplicate, malformed,
-   or unexpected records. Bind results to the fixture run, build revisions,
-   target, binary and log hashes, toolchain, and sanitizer configuration.
-   Run the expanded suite in the existing Linux i686 sanitizer jobs and
-   retain Win32 ABI coverage. Record unavailable instrumentation explicitly.
-3. **Evaluate three dimensions independently.** Version the profile and
-   report separate verdicts for synthetic SDK validation, observed behavior
-   on identified live hosts, and host contracts supported by external
-   evidence. Cover pointer readability, returned strings, registration
-   ownership, edict arenas, hook-result storage, and callback code lifetime.
-   Keep incomplete, unverified, and unsupported results visible. Preserve
-   the existing compatibility profiles and historical certificates.
-4. **Publish the reproduction workflow.** Document the probes, evidence
-   requirements, commands, and example output. Test rejection of crashes,
-   sanitizer findings, and mismatched builds or runs. A clean fixture
-   run supports the invariants it exercised. Live behavior and host
-   obligations require their own evidence.
+See the [implementation checklist](roadmap.md#2-complete-memory-contracts-validation-v1)
+and [initial probe results](memory-safety-audit.md#memory-contracts-validation-v1-initial-probes).
 
-### Public API Rustdoc audit
+## Rustdoc policy
 
-Audited on 2026-11-24 with `missing_docs` warnings enabled for
-`metamod-sdk-rs`, with default features and with `--no-default-features`.
-The initial audit reported **124 missing documentation comments** in both
-configurations. This is a lint count, not a percentage of documented
-API or an assessment of documentation quality. Private implementation details,
-`#[doc(hidden)]` internals, generated raw bindings, and the separate macro and
-adapter crates are outside this count. The macro's existing documentation is
-available through its SDK re-export when default features are enabled.
-
-| Source | Initial missing comments |
-| --- | ---: |
-| `trace.rs` | 54 |
-| `message.rs` | 22 |
-| `engine.rs` | 12 |
-| `fake_client.rs` | 12 |
-| `lib.rs` | 10 |
-| `hooks.rs` | 10 |
-| `runtime.rs` | 4 |
-| **Total** | **124** |
-
-By item kind: 52 enum variants, 43 fields, 16 methods, seven enums,
-three structs, two associated constants, and one associated function.
-All emitted intra-doc links resolve in both configurations when broken links
-are treated as errors. The crate homepage examples are included in doctest verification.
-
-The follow-up documentation pass closes all 124 reported gaps: both feature
-configurations now build with **zero missing-docs warnings**. Public fields,
-error and lifecycle variants, accessors, metadata, and hook opt-ins have
-comments explaining their semantics. Examples cover CVar registration, command
-arguments, entity snapshots, trace filtering, and queued fake-client removal.
-Additional examples cover runtime name normalization, CVar updates, retained
-player selections, player information, admission and keyvalue opt-ins, post-hook
-observations, checked console output, payload overflow, and registration-size
-validation. The Rustdoc homepage indexes these feature examples.
-The SDK crate now denies `missing_docs`, so new visible public items require
-comments in ordinary builds as well as documentation builds. Hidden FFI helpers,
-generated raw bindings, and separate crates remain outside this SDK policy.
-
-Further work is qualitative: expand game-specific adapter examples, review
-unsafe contracts as APIs evolve, and keep guide examples synchronized with the
-compiled Rustdoc examples. A satisfied lint does not establish documentation
-quality, complete unsafe contracts, or compatibility on an untested host.
+The SDK denies `missing_docs`. CI builds Rustdoc and runs doctests with default
+features enabled and disabled. Hidden FFI helpers, generated bindings, and
+separate crates are outside this SDK policy. See the [dated documentation
+audit](rustdoc-audit.md) for the original counts and follow-up results.
 
 Reproduce from the repository root with the usual pinned submodules and
 libclang prerequisites:

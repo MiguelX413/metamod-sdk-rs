@@ -1,5 +1,9 @@
 # Fake-client lifecycle investigation
 
+For plugin use, see the [SDK and Ricochet adapter](#rust-sdk-and-ricochet-adapter).
+The [SDK boundary](#sdk-boundary) describes host requirements;
+[reproduction steps](#reproduce) and the live results below retain the evidence.
+
 The pinned GoldSrc engine table describes `pfnCreateFakeClient` as returning
 an edict or null. It does not specify GameDLL initialization, callback order,
 rollback, or client removal. The engine owns the client slot and edict.

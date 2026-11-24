@@ -43,39 +43,30 @@
 //!
 //! # Find an API
 //!
-//! | Task | Start here |
+//! | Task | API or example |
 //! | --- | --- |
-//! | Handle frames, maps, admission, and player events | [`Plugin`] |
-//! | Print, register commands, and access CVars | [`Context::server`], [`Server`], [`Command`] |
-//! | Log through Metamod | [`Context::metamod`], [`MetaMod`] |
-//! | Track player sessions | [`PlayerId`], [`Context::player_at`] |
-//! | Discover entities and copy their properties | [`EntityHandle`], [`EntityInfo`], [`EntitySpatial`] |
-//! | Trace geometry | [`TraceSegment`], [`TraceOptions`], [`TraceResult`] |
-//! | Prepare user-message bytes | [`UserMessagePayload`] |
+//! | Handle frames and map changes | [`Plugin`] |
+//! | Register commands and read their arguments | [`Server::register_command`], [`Command`] |
+//! | Validate a runtime console name | [`OwnedConsoleName::normalize`] |
+//! | Read and update a CVar | [`Server::set_cvar`] |
+//! | Print or log through Metamod | [`MetaMod::print_console`], [`MetaMod::log`] |
+//! | Keep a player selection across callbacks | [`Context::player_at`], [`PlayerId`] |
+//! | Copy player information | [`Context::player_info`] |
+//! | Discover entities and copy their properties | [`Context::entities`], [`Context::entity_info`], [`Context::entity_spatial`] |
+//! | Trace geometry | [`Server::trace_line`], [`Server::trace_hull`] |
+//! | Reject a connection | [`ClientAdmission`] |
+//! | Observe map keyvalues | [`KeyValueEvent`] |
+//! | Observe a lag-compensation result | [`PostHookResult`] |
+//! | Build message bytes and handle overflow | [`UserMessagePayload::write_string`] |
+//! | Check a payload against its registration | [`MetaMod::user_message`] |
 //! | Opt into native user-message delivery | [`MessageSender`] and its unsafe host contract |
 //! | Implement game-specific fake-client setup | [`FakeClientSetup`] |
 //!
 //! [`prelude`] collects common imports. Native calls can synchronously change
 //! lifecycle state; check errors for unavailable services or expired identities.
 //!
-//! # Worked examples
-//!
-//! Each linked API includes a compiled example. Helpers that accept a
-//! [`Context`] are intended to be called from plugin callbacks; compiling them
-//! does not execute a live host operation.
-//!
-//! | Example | API documentation |
-//! | --- | --- |
-//! | Validate and normalize a runtime console name | [`OwnedConsoleName::normalize`] |
-//! | Read and update a plugin CVar | [`Server::set_cvar`] |
-//! | Keep a player selection across callbacks | [`Context::player_at`] |
-//! | Copy a player's native user ID | [`Context::player_info`] |
-//! | Reject a reserved client name | [`ClientAdmission`] |
-//! | Observe owned map keyvalue inputs | [`KeyValueEvent`] |
-//! | Observe a lag-compensation result without replacing it | [`PostHookResult`] |
-//! | Reject oversized Metamod console output | [`MetaMod::print_console`] |
-//! | Preserve a payload after an oversized field write | [`UserMessagePayload::write_string`] |
-//! | Check payload size against a native registration | [`MetaMod::user_message`] |
+//! Examples that accept [`Context`] run inside plugin callbacks. Doctests check
+//! compilation and Rust-only behavior; they do not run a live server.
 //!
 //! # Registration without procedural macros
 //!

@@ -1,5 +1,9 @@
 # Memory-safety audit
 
+For the contracts, see the [boundary review](#unsafe-boundary-review). To reproduce
+checks, use the [fixtures](#controlled-rust-and-native-fixtures) or
+[live Linux instrumentation](#instrument-an-existing-linux-matrix).
+
 The **memory-safety v1** evidence format keeps three independent assessments.
 It has no aggregate pass or memory-safety badge.
 

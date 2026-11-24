@@ -26,107 +26,11 @@ impl Plugin for EngineDemo {
     }
 
     fn server_command(&mut self, ctx: &mut Context<'_>, command: &Command) {
-        let server = ctx.server();
-        if command.name().as_c_str() == c"rust_entities" {
-            let entities = if let Some(argument) = command.arg(0) {
-                let Ok(index) = argument.to_string_lossy().parse::<i32>() else {
-                    server.print(c"rust_entities expects an integer edict index\n");
-                    return;
-                };
-                ctx.entity_at(index)
-                    .map(|entity| entity.into_iter().collect())
-            } else {
-                ctx.entities()
-            };
-            match entities {
-                Ok(entities) => {
-                    server.print(&c_string(format!("Visible entities: {}\n", entities.len())));
-                    for entity in entities {
-                        if let (Some(info), Some(spatial)) =
-                            (ctx.entity_info(entity), ctx.entity_spatial(entity))
-                        {
-                            let classname = info
-                                .keyvalues
-                                .classname
-                                .as_deref()
-                                .map_or_else(|| "<unset>".into(), |name| name.to_string_lossy());
-                            let targetname = info
-                                .keyvalues
-                                .targetname
-                                .as_deref()
-                                .map_or_else(|| "<unset>".into(), |name| name.to_string_lossy());
-                            server.print(&c_string(format!(
-                                "Entity {} {:?} class={} targetname={} origin: {:?}\n",
-                                entity.index(),
-                                info.kind,
-                                classname,
-                                targetname,
-                                spatial.origin
-                            )));
-                        }
-                    }
-                }
-                Err(error) => {
-                    server.print(&c_string(format!("Entity discovery failed: {error}\n")))
-                }
-            }
-            return;
-        }
-        if command.name().as_c_str() == c"rust_trace" {
-            const SEGMENT: TraceSegment =
-                match TraceSegment::new([0.0, 0.0, 64.0], [0.0, 0.0, -64.0]) {
-                    Ok(segment) => segment,
-                    Err(_) => panic!("demo trace endpoints must be finite"),
-                };
-            match server.trace_line(SEGMENT, TraceOptions::default()) {
-                Ok(line) => {
-                    let hit = line.hit.filter(|hit| ctx.is_entity_current(*hit));
-                    server.print(&c_string(format!(
-                        "Line fraction: {}, hit: {:?}\n",
-                        line.fraction,
-                        hit.map(EntityHandle::index)
-                    )));
-                    let options = TraceOptions {
-                        monsters: TraceMonsters::Ignore,
-                        skip: hit,
-                    };
-                    match server.trace_hull(SEGMENT, Hull::Human, options) {
-                        Ok(hull) => {
-                            server.print(&c_string(format!("Hull fraction: {}\n", hull.fraction)))
-                        }
-                        Err(error) => {
-                            server.print(&c_string(format!("Hull trace failed: {error}\n")))
-                        }
-                    }
-                }
-                Err(error) => server.print(&c_string(format!("Line trace failed: {error}\n"))),
-            }
-            return;
-        }
-        if command.name().as_c_str() != c"rust_hello" {
-            return;
-        }
-        if let Some(argument) = command.arg(0)
-            && let Err(error) =
-                CvarValue::new(argument).and_then(|value| server.set_cvar(MESSAGE, value))
-        {
-            server.print(&c_string(format!(
-                "Could not update rust_hello_message: {error}\n"
-            )));
-            return;
-        }
-        match server.cvar(MESSAGE) {
-            Ok(Some(message)) => {
-                let mut line = message.into_bytes();
-                if !line.ends_with(b"\n") {
-                    line.push(b'\n');
-                }
-                server.print(&c_string(line));
-            }
-            Ok(None) => server.print(c"rust_hello_message is unavailable\n"),
-            Err(error) => server.print(&c_string(format!(
-                "Could not read rust_hello_message: {error}\n"
-            ))),
+        match command.name().as_c_str().to_bytes() {
+            b"rust_entities" => show_entities(ctx, command),
+            b"rust_trace" => show_trace(ctx),
+            b"rust_hello" => hello_message(ctx, command),
+            _ => {}
         }
     }
 
@@ -232,5 +136,102 @@ impl Plugin for EngineDemo {
         } else {
             server.print(&c_string(format!("Hello, player in slot {slot}!\n")));
         }
+    }
+}
+
+fn show_entities(ctx: &Context<'_>, command: &Command) {
+    let server = ctx.server();
+    let entities = if let Some(argument) = command.arg(0) {
+        let Ok(index) = argument.to_string_lossy().parse::<i32>() else {
+            server.print(c"rust_entities expects an integer edict index\n");
+            return;
+        };
+        ctx.entity_at(index)
+            .map(|entity| entity.into_iter().collect())
+    } else {
+        ctx.entities()
+    };
+    match entities {
+        Ok(entities) => {
+            server.print(&c_string(format!("Visible entities: {}\n", entities.len())));
+            for entity in entities {
+                if let (Some(info), Some(spatial)) =
+                    (ctx.entity_info(entity), ctx.entity_spatial(entity))
+                {
+                    let classname = info
+                        .keyvalues
+                        .classname
+                        .as_deref()
+                        .map_or_else(|| "<unset>".into(), |name| name.to_string_lossy());
+                    let targetname = info
+                        .keyvalues
+                        .targetname
+                        .as_deref()
+                        .map_or_else(|| "<unset>".into(), |name| name.to_string_lossy());
+                    server.print(&c_string(format!(
+                        "Entity {} {:?} class={} targetname={} origin: {:?}\n",
+                        entity.index(),
+                        info.kind,
+                        classname,
+                        targetname,
+                        spatial.origin
+                    )));
+                }
+            }
+        }
+        Err(error) => server.print(&c_string(format!("Entity discovery failed: {error}\n"))),
+    }
+}
+
+fn show_trace(ctx: &Context<'_>) {
+    let server = ctx.server();
+    const SEGMENT: TraceSegment = match TraceSegment::new([0.0, 0.0, 64.0], [0.0, 0.0, -64.0]) {
+        Ok(segment) => segment,
+        Err(_) => panic!("demo trace endpoints must be finite"),
+    };
+    match server.trace_line(SEGMENT, TraceOptions::default()) {
+        Ok(line) => {
+            let hit = line.hit.filter(|hit| ctx.is_entity_current(*hit));
+            server.print(&c_string(format!(
+                "Line fraction: {}, hit: {:?}\n",
+                line.fraction,
+                hit.map(EntityHandle::index)
+            )));
+            let options = TraceOptions {
+                monsters: TraceMonsters::Ignore,
+                skip: hit,
+            };
+            match server.trace_hull(SEGMENT, Hull::Human, options) {
+                Ok(hull) => server.print(&c_string(format!("Hull fraction: {}\n", hull.fraction))),
+                Err(error) => server.print(&c_string(format!("Hull trace failed: {error}\n"))),
+            }
+        }
+        Err(error) => server.print(&c_string(format!("Line trace failed: {error}\n"))),
+    }
+}
+
+fn hello_message(ctx: &Context<'_>, command: &Command) {
+    let server = ctx.server();
+    if let Some(argument) = command.arg(0)
+        && let Err(error) =
+            CvarValue::new(argument).and_then(|value| server.set_cvar(MESSAGE, value))
+    {
+        server.print(&c_string(format!(
+            "Could not update rust_hello_message: {error}\n"
+        )));
+        return;
+    }
+    match server.cvar(MESSAGE) {
+        Ok(Some(message)) => {
+            let mut line = message.into_bytes();
+            if !line.ends_with(b"\n") {
+                line.push(b'\n');
+            }
+            server.print(&c_string(line));
+        }
+        Ok(None) => server.print(c"rust_hello_message is unavailable\n"),
+        Err(error) => server.print(&c_string(format!(
+            "Could not read rust_hello_message: {error}\n"
+        ))),
     }
 }

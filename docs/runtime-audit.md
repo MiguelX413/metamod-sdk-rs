@@ -1,5 +1,8 @@
 # GoldSrc runtime auditing
 
+Start with [setup and commands](#configure-and-run). See [certification](#compatibility-certification)
+for recorded results and [interpretation](#interpretation) for their scope.
+
 `metamod-audit` is a resident Metamod plugin built on the public SDK. It uses normal GameDLL hooks, ordinary server commands, and owned SDK snapshots. The Python runner copies an operator-supplied installation, selects one Metamod and one GameDLL, and collects the plugin's observations. The C++ fixture exercises adversarial SDK paths with controlled native inputs.
 
 ## Matrix and prerequisites

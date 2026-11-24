@@ -88,8 +88,20 @@ Native user-message sending requires an explicit unsafe host opt-in; see
 
 ## Documentation
 
+- [API and host support](docs/support-matrix.md) for proposed release scope and recorded host evidence
 - [SDK reference](docs/sdk-reference.md) for setup, API usage, and native safety contracts
 - [Hello world](examples/hello-world/src/lib.rs) and [engine demo](examples/engine-demo/src/lib.rs)
-- [API coverage and roadmap](docs/api-coverage.md)
+- [Release roadmap](docs/roadmap.md) for release gates, feature expansion, and validation
+- [API coverage](docs/api-coverage.md) for the current interface inventory
 - [Runtime auditing](docs/runtime-audit.md) and [memory-safety verification](docs/memory-safety-audit.md)
 - [License](LICENSE) and [upstream notices](docs/sdk-reference.md#licensing-and-references)
+
+## Use with a coding assistant
+
+The [Metamod SDK skill](skills/metamod-sdk/SKILL.md) guides API selection,
+callback lifecycles, and host support checks. Ask your assistant to read that
+file when working from this checkout. To install it in Codex, copy the
+`skills/metamod-sdk` folder to your Codex skills directory (normally
+`~/.codex/skills/`), then invoke `$metamod-sdk`. Keep the matching SDK sources
+available: the skill reads their support matrix, Rustdoc, and examples rather
+than bundling a second copy of them.

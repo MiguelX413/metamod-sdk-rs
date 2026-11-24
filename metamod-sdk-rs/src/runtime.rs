@@ -126,7 +126,7 @@ impl PlayerUserId {
         }
     }
 
-    /// Return the positive native user ID as an integer.
+    /// Positive native user ID.
     pub const fn get(self) -> i32 {
         self.0.get()
     }
@@ -260,7 +260,7 @@ impl MetamodMessage {
     /// Maximum payload length in bytes, excluding the NUL terminator.
     pub const MAX_LEN: usize = MAX_UTILITY_MESSAGE;
 
-    /// Borrow the validated message as a native NUL-terminated string.
+    /// The validated C string.
     pub fn as_c_str(&self) -> &CStr {
         &self.0
     }

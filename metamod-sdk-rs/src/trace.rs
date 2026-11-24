@@ -560,21 +560,16 @@ impl Server<'_, '_> {
     /// can still expire after this call; see [`TraceResult::hit`].
     ///
     /// ```
-    /// use metamod_sdk_rs::{Context, EntityHandle, TraceError, TraceOptions, TraceSegment};
+    /// use metamod_sdk_rs::{Context, EntityHandle, TraceError, TraceOptions, TraceResult, TraceSegment};
     ///
-    /// fn probe(ctx: &Context<'_>, skip: EntityHandle) -> Result<(), TraceError> {
+    /// fn probe(ctx: &Context<'_>, skip: EntityHandle) -> Result<TraceResult, TraceError> {
     ///     let segment = TraceSegment::new([0.0, 0.0, 32.0], [128.0, 0.0, 32.0])?;
     ///     let result = ctx.server().trace_line(segment, TraceOptions {
     ///         skip: Some(skip),
     ///         ..TraceOptions::default()
     ///     })?;
-    ///     if result.fraction < 1.0 {
-    ///         // A collision need not have a resolvable hit identity.
-    ///         if let Some(hit) = result.hit {
-    ///             let _still_current = ctx.is_entity_current(hit);
-    ///         }
-    ///     }
-    ///     Ok(())
+    ///     // Return the full result: collision can occur without a resolved hit entity.
+    ///     Ok(result)
     /// }
     /// ```
     pub fn trace_line(
