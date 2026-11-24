@@ -23,7 +23,7 @@ scope.
 | Edict arena, traces and player identity | Indices are bounded by current capacities. Epoch, native serial and tracked player session are checked at lifetime boundaries. Controlled mocks retire an arena during lookup and discard the expired pointer. Trace inputs and output storage live through the synchronous call. | The host must deliver map retirement before invalidating the arena and keep same-map slot identity fields readable. Native functions must not retain trace stack pointers or use a skip edict after invalidating it. Unobserved retirement and incorrect native serial bookkeeping cannot be detected reliably. |
 | Native strings and validated byte types | SDK scans stop at the NUL or configured limit. Engine strings are copied before another native call. Observed SDK reentry invalidates borrowed getter results. Transparent validated wrappers preserve the original allocation, DST metadata and borrow. | A non-null returned string needs contiguous initialized bytes through its NUL or the read limit. Native code must preserve that range while Rust reads it. Unobserved reentry in other plugins or internal native code may violate the getter lifetime. |
 | CVar and command registration | The CVar pool reserves disjoint writable slots atomically, initializes each once and leaves it resident. Names, defaults and command trampolines outlive all supported uses. No registry borrow crosses native code. The native fixture verifies the module ownership lookup used by Metamod-R. | Native registration may retain records but the host must follow its ownership contract for the original allocations. The SDK cannot recover records or deregister commands portably. Registration storage is bounded and intentionally retained. |
-| Strings lent to native calls | Console and log calls lend valid C strings for the synchronous call. Metamod variadic utilities receive a fixed format. The new mock triggers nested shutdown while reading a buffer owned by the active plugin and checks that it can still read that buffer before returning. | The native callback must respect const input, its length or termination, and the synchronous borrowing period. Native format or buffer defects remain a host risk. |
+| Strings lent to native calls | Console and log calls lend valid C strings for the synchronous call. Metamod variadic utilities receive a fixed format. A controlled mock triggers nested shutdown while reading a buffer owned by the active plugin and checks that it can still read that buffer before returning. | The native callback must respect const input, its length or termination, and the synchronous borrowing period. Native format or buffer defects remain a host risk. |
 
 Miri found invalidated pointer tags in two Rust mocks. The mock host wrote
 to the stack variable holding the hook result between invocations, then the
@@ -37,7 +37,7 @@ pointer validity.
 ## Controlled Rust and native fixtures
 
 Initialize the pinned upstream submodules and install libclang as described
-in the README. On a development machine with nightly Miri:
+in the [SDK reference](sdk-reference.md#linux-i686). On a development machine with nightly Miri:
 
 ```bash
 rustup component add miri --toolchain nightly
@@ -146,6 +146,9 @@ ordinary audit fails. For compatibility, use the unchanged `runner.py certify`
 command against the ordinary report and preserve its certificate separately.
 
 ## Validation of the v1 tooling
+
+The following records the initial tooling validation, rather than a current
+workspace test count.
 
 The development run passed the eight Miri scenarios, workspace tests and
 doctests, Clippy, the i686 ABI and both sanitizer loader variants, and the

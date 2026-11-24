@@ -816,8 +816,8 @@ PY
 INSTALLS="$RUNROOT/installs"
 mkdir -p "$INSTALLS"
 say "Creating standalone, separate HLDS and ReHLDS snapshots."
-# -L materializes any SteamCMD-created symlinks: the repo runner explicitly
-# refuses symlink/reparse-point source trees for safe staging.
+# The staging helper materializes validated internal links and the narrowly
+# allowed SDL2 fallback. The runner requires the resulting tree to contain no links.
 stage_installation() {
   python3 "$SCRIPT_DIR/staging.py" "$1" "$2" "$3"
 }

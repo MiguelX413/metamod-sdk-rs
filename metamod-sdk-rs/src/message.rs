@@ -1,4 +1,4 @@
-//! Owned construction of GoldSrc user-message payloads.
+//! Owned user-message payloads, registration lookup, and recipient validation.
 
 use std::{ffi::CStr, fmt};
 
@@ -9,7 +9,7 @@ pub const MAX_USER_MESSAGE_BYTES: usize = 192;
 ///
 /// Construction is independent of the server and makes no engine calls.
 /// The message's protocol, registered size and recipient must be checked
-/// separately before native transmission.
+/// separately before native transmission. The SDK currently provides no send API.
 ///
 /// ```
 /// use metamod_sdk_rs::UserMessagePayload;

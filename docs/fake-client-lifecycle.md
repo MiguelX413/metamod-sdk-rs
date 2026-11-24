@@ -30,7 +30,9 @@ rollback, or client removal. The engine owns the client slot and edict.
   still have consumed a slot.
 - Keep engine allocation and GameDLL admission distinct. A non-null edict
   does not establish a fully initialized GameDLL player. The current SDK
-  establishes `PlayerId` through an observed `ClientPutInServer` hook.
+  establishes ordinary-player `PlayerId` values through observed
+  `ClientPutInServer` hooks. The fake-client adapter publishes its own
+  validated session after completing GameDLL setup.
   Direct calls through the original GameDLL table can bypass Metamod hook
   delivery. Avoid synthesizing an ordinary player-join event from allocation
   or promising that the existing admission hook runs for every fake client.

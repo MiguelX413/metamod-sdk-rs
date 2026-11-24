@@ -68,6 +68,9 @@ and add `&mut self` and `&mut Context<'_>` to its callbacks. Existing
 | --- | --- |
 | `initialize` | Once per startup attach attempt, after construction. Return `false` to decline. |
 | `start_frame` | Before the game DLL's frame callback. |
+| `client_connect` | Opt-in synchronous pre-hook before GameDLL admission. |
+| `key_value` | Opt-in owned observation before GameDLL keyvalue dispatch. |
+| `allow_lag_compensation` / `allow_lag_compensation_post` | Independently opted-in synchronous pre/post decisions. |
 | `server_command` | When GoldSrc invokes a command registered by this plugin. |
 | `server_activate` | After the game DLL activates the map. |
 | `server_deactivate` | Before the game DLL deactivates the map. |
@@ -506,8 +509,7 @@ The SDK leaves PE ordinals to the linker.
   keeps the slot allocation readable until such a boundary, including
   during map loading if it supplies a player hook then.
   `player_at` and `is_player_current` describe observed hook bookkeeping.
-  It copies strings before making
-  another native call. Native return buffers must remain readable until
+  Player information copies strings before making another native call. Native return buffers must remain readable until
   that copy completes. Alignment checks can reject malformed inputs, but
   cannot establish that an aligned pointer refers to readable memory. In
   particular, if the map remains active throughout lookup or tracing,
@@ -561,8 +563,8 @@ pwsh -NoProfile -File verify/windows-i686.ps1
 ```
 
 The platform scripts compare C++ and Rust sizes, alignments, and field offsets.
-They check both example binaries for the four named exports and load each
-plugin with `dlopen` or `LoadLibrary`. The shared harness exercises metadata
+They check both example binaries and the audit plugin for the four named
+exports and load each plugin with `dlopen` or `LoadLibrary`. The shared harness exercises metadata
 and lifecycle negotiation, hook results, player-slot translation and
 revalidation, CVar updates, command reentry, and deferred callback ordering.
 It also checks line and hull tracing, discovery across vacant slots,
@@ -570,7 +572,7 @@ out-of-range lookup, spatial snapshots, and interruption by map changes.
 Rust tests cover identity invalidation, dispatch limits, off-thread dispatch,
 and panic containment during callbacks and cleanup.
 The Linux i686 CI job sets `METAMOD_SANITIZE_LOADER=1` to instrument the C++
-loader with AddressSanitizer and UndefinedBehaviorSanitizer. Set the same
+loader with AddressSanitizer, UndefinedBehaviorSanitizer, and LeakSanitizer. Set the same
 variable when running the Linux script locally. This requires the 32-bit
 sanitizer runtimes and leaves the Rust libraries uninstrumented. The
 32-bit GCC AddressSanitizer runtime also checks for leaks. The loader
@@ -616,8 +618,9 @@ Validated against alliedmodders/metamod-hl1 at
 `a0edb7792a96998d349325bebab8ea41ec5cb239`.
 An earlier Ricochet smoke test on Metamod-P 1.21p109 confirmed startup,
 the first frame, and a player greeting. The current examples passed the
-Linux i686 ABI and loader harness. Win32 and live-server tracing and
-entity discovery remain unverified.
+Linux i686 ABI and loader harness. The recorded Ricochet core v2 run also
+verified tracing and entity discovery on six Linux i686 configurations.
+Win32 live verification remains pending. [Recorded results](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)
 
 Before publishing the SDK, run the example on isolated servers with both
 Metamod loaders, including a native Win32 server, and establish the supported

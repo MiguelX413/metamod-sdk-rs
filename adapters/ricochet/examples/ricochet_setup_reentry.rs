@@ -1,4 +1,4 @@
-//! Test-only forced reentry after native setup and before SDK session publication.
+//! Test-only map reentry during allocation or after native setup, before session publication.
 #![cfg(target_os = "linux")]
 #![deny(unsafe_op_in_unsafe_fn)]
 

@@ -133,7 +133,8 @@ pub trait Plugin: Default + 'static {
     }
 
     /// Best-effort cleanup when Metamod forwards the game-DLL shutdown hook.
-    /// The SDK drops this instance afterward. Engine access is unavailable.
+    /// Cleanup waits for any active plugin callback to return, then the SDK drops
+    /// this instance. Engine access is unavailable.
     fn shutdown(&mut self) {}
 
     /// Handle a command registered through `Server::register_command`.
