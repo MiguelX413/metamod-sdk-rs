@@ -140,9 +140,9 @@ requirement if registry publication is selected.
   `publish = false` only when registry publication is actually intended and
   the package checks pass.
 
-**Ready when:** a new checkout or extracted distribution can build both example
-plugins using only its documented inputs. The chosen publication route has no
-hidden dependency on the maintainer's workspace.
+**Ready when:** a new checkout or extracted distribution can build hello-world,
+engine-demo, and player-tracker using only the documented inputs. The chosen
+publication route has no hidden dependency on the maintainer's workspace.
 
 ### 5 Freeze and release the supported API
 

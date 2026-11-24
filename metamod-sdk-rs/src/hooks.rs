@@ -1,21 +1,21 @@
 //! Outcomes for synchronous Metamod hooks.
 
-use crate::bounded_cstr::BoundedCString;
+use crate::bounded_cstr::{BoundedCStr, BoundedCString};
 use std::{
-    borrow::Borrow,
+    borrow::{Borrow, Cow},
     ffi::{CStr, CString},
     fmt,
     ops::Deref,
 };
 
-/// An owned client rejection reason of at most 127 payload bytes.
+/// A borrowed client rejection reason of at most 127 payload bytes.
 ///
-/// Preserves native bytes, including non-UTF-8 text. Ordinary construction
-/// rejects overflow; use [`ClientAdmission::reject_trunc`] to opt into truncation.
-/// Successful construction from `&CStr` allocates and copies. Consuming a
-/// `CString` or `Box<CStr>` transfers its allocation instead.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ClientRejectReason(BoundedCString<127>);
+/// Validation preserves the original bytes and pointer without allocating.
+/// Use `Box<ClientRejectReason>` for ownership; consuming conversions from
+/// `CString` and `Box<CStr>` reuse their allocations.
+#[repr(transparent)]
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ClientRejectReason(BoundedCStr<127>);
 
 /// A rejection reason exceeded 127 bytes, excluding its NUL terminator.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,49 +32,92 @@ impl ClientRejectReason {
     /// Maximum payload length, excluding the terminating NUL.
     pub const MAX_LEN: usize = 127;
 
-    /// Validate and copy native bytes. Returns an error without truncating.
-    pub fn new(reason: &CStr) -> Result<Self, ClientRejectReasonTooLong> {
-        reason.try_into()
+    /// Validate native bytes without copying or truncating.
+    ///
+    /// The result cannot outlive its source:
+    ///
+    /// ```compile_fail,E0515
+    /// use metamod_sdk_rs::ClientRejectReason;
+    /// use std::ffi::CString;
+    /// fn invalid() -> &'static ClientRejectReason {
+    ///     let text = CString::new("temporary").unwrap();
+    ///     ClientRejectReason::new(&text).unwrap()
+    /// }
+    /// ```
+    pub const fn new(reason: &CStr) -> Result<&Self, ClientRejectReasonTooLong> {
+        let bounded = match BoundedCStr::<127>::new(reason) {
+            Ok(value) => value,
+            Err(_) => return Err(ClientRejectReasonTooLong),
+        };
+        // SAFETY: The transparent wrapper preserves the validated field's
+        // layout, pointer metadata, and original borrow lifetime.
+        Ok(unsafe { &*(bounded as *const BoundedCStr<127> as *const Self) })
     }
 
     /// The validated, NUL-terminated reason.
-    pub fn as_c_str(&self) -> &CStr {
+    pub const fn as_c_str(&self) -> &CStr {
         self.0.as_c_str()
     }
-}
 
-impl TryFrom<&CStr> for ClientRejectReason {
+    fn from_bounded(reason: Box<BoundedCStr<127>>) -> Box<Self> {
+        // SAFETY: The transparent wrapper has its validated field's layout
+        // and pointer metadata. The allocation is transferred exactly once.
+        unsafe { Box::from_raw(Box::into_raw(reason) as *mut Self) }
+    }
+}
+impl<'a> TryFrom<&'a CStr> for &'a ClientRejectReason {
+    type Error = ClientRejectReasonTooLong;
+    fn try_from(reason: &'a CStr) -> Result<Self, Self::Error> {
+        ClientRejectReason::new(reason)
+    }
+}
+impl ToOwned for ClientRejectReason {
+    type Owned = Box<Self>;
+    fn to_owned(&self) -> Box<Self> {
+        Self::from_bounded(self.0.to_owned().into())
+    }
+}
+impl Clone for Box<ClientRejectReason> {
+    fn clone(&self) -> Self {
+        (**self).to_owned()
+    }
+}
+impl From<&ClientRejectReason> for Box<ClientRejectReason> {
+    fn from(reason: &ClientRejectReason) -> Self {
+        reason.to_owned()
+    }
+}
+impl TryFrom<&CStr> for Box<ClientRejectReason> {
     type Error = ClientRejectReasonTooLong;
     fn try_from(reason: &CStr) -> Result<Self, Self::Error> {
-        BoundedCString::try_from(reason)
-            .map(Self)
-            .map_err(|_| ClientRejectReasonTooLong)
+        ClientRejectReason::new(reason).map(ToOwned::to_owned)
     }
 }
-impl TryFrom<CString> for ClientRejectReason {
+impl TryFrom<CString> for Box<ClientRejectReason> {
     type Error = ClientRejectReasonTooLong;
     fn try_from(reason: CString) -> Result<Self, Self::Error> {
-        BoundedCString::try_from(reason)
-            .map(Self)
-            .map_err(|_| ClientRejectReasonTooLong)
+        reason.into_boxed_c_str().try_into()
     }
 }
-impl TryFrom<Box<CStr>> for ClientRejectReason {
+impl TryFrom<Box<CStr>> for Box<ClientRejectReason> {
     type Error = ClientRejectReasonTooLong;
     fn try_from(reason: Box<CStr>) -> Result<Self, Self::Error> {
-        BoundedCString::try_from(reason)
-            .map(Self)
+        Box::try_from(reason)
+            .map(ClientRejectReason::from_bounded)
             .map_err(|_| ClientRejectReasonTooLong)
     }
 }
-impl From<ClientRejectReason> for CString {
-    fn from(reason: ClientRejectReason) -> Self {
-        reason.0.into()
+impl From<Box<ClientRejectReason>> for Box<CStr> {
+    fn from(reason: Box<ClientRejectReason>) -> Self {
+        // SAFETY: The transparent wrapper has its field's layout and metadata;
+        // consuming the box leaves no live borrow of the transferred storage.
+        let bounded = unsafe { Box::from_raw(Box::into_raw(reason) as *mut BoundedCStr<127>) };
+        bounded.into()
     }
 }
-impl From<ClientRejectReason> for Box<CStr> {
-    fn from(reason: ClientRejectReason) -> Self {
-        reason.0.into()
+impl From<Box<ClientRejectReason>> for CString {
+    fn from(reason: Box<ClientRejectReason>) -> Self {
+        Box::<CStr>::from(reason).into_c_string()
     }
 }
 impl Deref for ClientRejectReason {
@@ -196,6 +239,10 @@ pub struct ClientConnection {
 
 /// Decision made before the GameDLL handles a client connection.
 ///
+/// Reasons may borrow plugin state or the connection snapshot for the callback's
+/// lifetime. The SDK copies their bytes before releasing that borrow and before
+/// draining deferred callbacks; a borrowed literal needs no heap allocation.
+///
 /// Enable the admission pre-hook explicitly. This example rejects one exact
 /// name and defers every other connection to the host's normal policy.
 ///
@@ -211,9 +258,9 @@ pub struct ClientConnection {
 /// #    };
 ///     const CLIENT_CONNECT_PRE: bool = true;
 ///
-///     fn client_connect(&mut self, _: &mut Context<'_>, client: &ClientConnection) -> ClientAdmission {
+///     fn client_connect<'a>(&'a mut self, _: &mut Context<'_>, client: &'a ClientConnection) -> ClientAdmission<'a> {
 ///         if client.name.as_c_str() == c"RejectedExampleName" {
-///             ClientAdmission::Reject(c"This name is reserved.".try_into().expect("short reason"))
+///             ClientAdmission::reject(c"This name is reserved.").expect("short reason")
 ///         } else {
 ///             ClientAdmission::Defer
 ///         }
@@ -221,31 +268,49 @@ pub struct ClientConnection {
 /// }
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub enum ClientAdmission {
+pub enum ClientAdmission<'a> {
     /// Leave admission to the GameDLL and other Metamod plugins.
     #[default]
     Defer,
     /// Supercede the GameDLL call with this validated reason. All bytes,
     /// including the terminating NUL, fit the native 128-byte output buffer.
-    Reject(ClientRejectReason),
+    /// Use [`Self::reject`] to borrow or [`Self::reject_owned`] to consume a CString.
+    Reject(Cow<'a, ClientRejectReason>),
 }
 
-impl ClientAdmission {
-    /// Validate and copy a rejection reason without truncating.
+impl<'a> ClientAdmission<'a> {
+    /// Validate and borrow a rejection reason without copying or allocating.
     ///
     /// ```
     /// use metamod_sdk_rs::{ClientAdmission, ClientRejectReasonTooLong};
     /// let decision = ClientAdmission::reject(c"Server is full")?;
     /// # Ok::<(), ClientRejectReasonTooLong>(())
     /// ```
-    pub fn reject(reason: &CStr) -> Result<Self, ClientRejectReasonTooLong> {
-        ClientRejectReason::new(reason).map(Self::Reject)
+    pub fn reject(reason: &'a CStr) -> Result<Self, ClientRejectReasonTooLong> {
+        ClientRejectReason::new(reason).map(|reason| Self::Reject(Cow::Borrowed(reason)))
+    }
+
+    /// Validate and take ownership of a dynamic reason, reusing its allocation.
+    pub fn reject_owned(reason: CString) -> Result<Self, ClientRejectReasonTooLong> {
+        Box::try_from(reason).map(|reason| Self::Reject(Cow::Owned(reason)))
     }
 
     /// Reject with at most 127 native payload bytes. Truncation can split UTF-8.
-    /// Allocates and copies the reason even when it already fits.
+    /// Allocates and copies, so the result does not borrow the input.
     pub fn reject_trunc(reason: &CStr) -> Self {
-        Self::Reject(ClientRejectReason(BoundedCString::new_trunc(reason)))
+        let bounded = BoundedCString::<127>::new_trunc(reason);
+        Self::Reject(Cow::Owned(ClientRejectReason::from_bounded(bounded.into())))
+    }
+}
+
+impl<'a> From<&'a ClientRejectReason> for ClientAdmission<'a> {
+    fn from(reason: &'a ClientRejectReason) -> Self {
+        Self::Reject(Cow::Borrowed(reason))
+    }
+}
+impl From<Box<ClientRejectReason>> for ClientAdmission<'_> {
+    fn from(reason: Box<ClientRejectReason>) -> Self {
+        Self::Reject(Cow::Owned(reason))
     }
 }
 
@@ -254,19 +319,61 @@ mod tests {
     use super::*;
 
     #[test]
+    fn borrowed_reasons_keep_the_source_pointer() {
+        const INPUT: &CStr = c"Reserved name";
+        const REASON: &ClientRejectReason = match ClientRejectReason::new(INPUT) {
+            Ok(reason) => reason,
+            Err(_) => panic!("short reason"),
+        };
+        assert_eq!(REASON.as_ptr(), INPUT.as_ptr());
+        let ClientAdmission::Reject(Cow::Borrowed(reason)) =
+            ClientAdmission::reject(INPUT).unwrap()
+        else {
+            panic!("literal should stay borrowed")
+        };
+        assert_eq!(reason.as_ptr(), INPUT.as_ptr());
+        let input = CString::new(vec![0xff; 127]).unwrap();
+        let validated: &ClientRejectReason = input.as_c_str().try_into().unwrap();
+        let ClientAdmission::Reject(Cow::Borrowed(reason)) = validated.into() else {
+            panic!("validated view should stay borrowed")
+        };
+        assert_eq!(reason.as_ptr(), input.as_ptr());
+        let ClientAdmission::Reject(Cow::Borrowed(reason)) =
+            ClientAdmission::reject(&input).unwrap()
+        else {
+            panic!("dynamic string should stay borrowed")
+        };
+        assert_eq!(reason.as_ptr(), input.as_ptr());
+        let pointer = input.as_ptr();
+        let ClientAdmission::Reject(Cow::Owned(reason)) =
+            ClientAdmission::reject_owned(input).unwrap()
+        else {
+            panic!("consumed string should stay owned")
+        };
+        assert_eq!(reason.as_ptr(), pointer);
+        let ClientAdmission::Reject(Cow::Owned(reason)) = ClientAdmission::from(reason) else {
+            panic!("consumed box should stay owned")
+        };
+        assert_eq!(reason.as_ptr(), pointer);
+    }
+
+    #[test]
     fn rejection_reasons_require_explicit_truncation() {
         for len in [0, ClientRejectReason::MAX_LEN] {
             let input = CString::new(vec![0xff; len]).unwrap();
-            let copied = ClientRejectReason::new(&input).unwrap();
-            assert_eq!(copied.as_c_str(), input.as_c_str());
-            assert_ne!(copied.as_ptr(), input.as_ptr());
+            let borrowed = ClientRejectReason::new(&input).unwrap();
+            assert_eq!(borrowed.as_c_str(), input.as_c_str());
+            assert_eq!(borrowed.as_ptr(), input.as_ptr());
+            let copied: Box<ClientRejectReason> = borrowed.into();
+            assert_eq!(&*copied, borrowed);
+            assert_ne!(copied.as_ptr(), borrowed.as_ptr());
             let pointer = input.as_ptr();
-            let owned = ClientRejectReason::try_from(input).unwrap();
+            let owned = Box::<ClientRejectReason>::try_from(input).unwrap();
             assert_eq!(owned.as_ptr(), pointer);
             assert_eq!(owned.clone(), owned);
             let boxed: Box<CStr> = owned.into();
             assert_eq!(boxed.as_ptr(), pointer);
-            let reason = ClientRejectReason::try_from(boxed).unwrap();
+            let reason = Box::<ClientRejectReason>::try_from(boxed).unwrap();
             assert_eq!(reason.as_ptr(), pointer);
             let string: CString = reason.into();
             assert_eq!(string.as_ptr(), pointer);
@@ -277,11 +384,11 @@ mod tests {
             ClientRejectReasonTooLong
         );
         assert_eq!(
-            ClientRejectReason::try_from(long.clone()).unwrap_err(),
+            Box::<ClientRejectReason>::try_from(long.clone()).unwrap_err(),
             ClientRejectReasonTooLong
         );
         assert_eq!(
-            ClientRejectReason::try_from(long.clone().into_boxed_c_str()).unwrap_err(),
+            Box::<ClientRejectReason>::try_from(long.clone().into_boxed_c_str()).unwrap_err(),
             ClientRejectReasonTooLong
         );
         assert_eq!(

@@ -284,11 +284,13 @@ pub trait Plugin: Default + 'static {
 
     /// Decide whether to reject a connection before the GameDLL sees it.
     /// Nested callbacks, invalid inputs, and panics defer to the host.
-    fn client_connect(
-        &mut self,
+    /// A rejection may borrow `self` or the connection snapshot. Its bytes are
+    /// copied before that borrow ends and before deferred callbacks run.
+    fn client_connect<'a>(
+        &'a mut self,
         _context: &mut Context<'_>,
-        _client: &ClientConnection,
-    ) -> ClientAdmission {
+        _client: &'a ClientConnection,
+    ) -> ClientAdmission<'a> {
         ClientAdmission::Defer
     }
 

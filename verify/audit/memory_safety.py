@@ -129,6 +129,10 @@ def markdown(report):
 
 
 MIRI_SCENARIOS = (
+    "hooks::tests::borrowed_reasons_keep_the_source_pointer",
+    "__ffi::tests::borrowed_admission_is_snapshotted_before_deferred_mutation_and_shutdown",
+    "__ffi::tests::borrowed_admission_is_discarded_after_deferred_panic",
+    "__ffi::tests::admission_can_borrow_the_owned_connection_snapshot",
     "bounded_cstr::tests::borrowed_and_owned_preserve_bounds_and_allocations",
     "bounded_cstr::tests::boxed_traits_keep_c_string_equality_and_hashing",
     "bounded_cstr::tests::owned_strings_round_trip_through_boxed_views_without_copying",

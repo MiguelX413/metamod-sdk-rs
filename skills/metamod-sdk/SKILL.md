@@ -79,6 +79,9 @@ consumer's chosen registration path.
 - Use bytes or handle UTF-8 conversion failure for native strings. Respect
   documented byte limits. `MetamodMessage` and `ClientRejectReason` reject
   overflow; use explicitly named `_trunc` methods only when intended.
+  Prefer `ClientAdmission::reject(c"reason")` for literals. Borrowed reasons may
+  reference plugin state or the connection snapshot; the SDK copies them before
+  draining deferred callbacks. Use `reject_owned` to transfer a `CString`.
   Null/alignment/length checks cannot establish arbitrary foreign pointer validity.
 - Keep startup-only loading, `PT_NEVER`, detach refusal, and resident native
   registrations. Stop the server before replacing/removing the library.

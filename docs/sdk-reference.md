@@ -118,10 +118,14 @@ to `Box<CStr>` or `CString` preserve bytes.
 
 ### Migrating unbounded messages
 
-Convert owned rejection reasons with `ClientRejectReason::try_from(reason)`
-before returning `ClientAdmission::Reject`. Handle validation errors explicitly
-inside `client_connect`, which returns `ClientAdmission` rather than `Result`.
-Use `ClientAdmission::reject_trunc(&reason)` only when truncation is intended.
+`ClientRejectReason` is now a borrowed view; use `Box<ClientRejectReason>` for
+ownership. Prefer `ClientAdmission::reject(&reason)` when the source lives for
+the callback, or `ClientAdmission::reject_owned(reason)` to consume a `CString`.
+A validated borrowed reason or box converts directly into `ClientAdmission`.
+The `Reject` variant now holds `Cow<'a, ClientRejectReason>`. Update the
+callback signature to return `ClientAdmission<'a>` with `self` and the connection
+snapshot borrowed for `'a`, as shown under [Client admission](#client-admission).
+Handle validation errors inside the callback; it does not return `Result`. `reject_trunc` remains an explicit, owned truncating alternative.
 `Context::log` and `Context::print_console` now require
 `&MetamodMessage`, matching `MetaMod`. Rename old calls to `log_trunc` or
 `print_console_trunc` only when truncation is intended. These are Rust API
@@ -444,23 +448,45 @@ Set `Plugin::CLIENT_CONNECT_PRE` to `true` and implement
 These are owned native strings. The hook runs before the GameDLL processes
 the connection, so it has no established `PlayerId`.
 
-`ClientAdmission::Defer` leaves the decision to the GameDLL and other
-plugins. `ClientAdmission::Reject` takes an owned `ClientRejectReason`, limited
-to 127 payload bytes plus its terminating NUL in GoldSrc's 128-byte buffer.
-`ClientAdmission::reject(&CStr)` returns a fallible decision; alternatively,
-construct the reason with `ClientRejectReason::new(&CStr)` or `try_into()`.
-Oversized reasons return
-`ClientRejectReasonTooLong`; ordinary construction never truncates.
-Successful construction from `&CStr` allocates and copies the reason;
-consuming `CString` and `Box<CStr>` conversions reuse owned storage.
-`ClientAdmission::reject_trunc(&CStr)` always allocates and copies, cuts by
-bytes, and can split UTF-8. Nested admission, missing or unterminated inputs,
-and plugin panics
-fall back to `MRES_IGNORED`. The host must supply readable inputs and keep
-the output buffer writable until the hook returns.
+`ClientAdmission::Defer` leaves the decision to the GameDLL and other plugins.
+`ClientAdmission::reject(c"Reason")` validates and borrows the literal without
+allocating. `ClientRejectReason::new(&CStr)` and conversion to
+`&ClientRejectReason` likewise preserve the original pointer. Oversized reasons
+return `ClientRejectReasonTooLong`; ordinary constructors never truncate.
 
-The engine demo passed live admission tests on Linux i686 with both Valve
-HLDS and ReHLDS. Win32 live testing is pending. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
+`ClientAdmission<'a>` holds a borrowed or boxed reason through
+`Cow<'a, ClientRejectReason>`. The callback ties that lifetime to both plugin
+state and the owned connection snapshot:
+
+```rust
+fn client_connect<'a>(
+    &'a mut self,
+    _ctx: &mut Context<'_>,
+    _client: &'a ClientConnection,
+) -> ClientAdmission<'a> {
+    ClientAdmission::reject(c"Server is closed").expect("short reason")
+}
+```
+
+For dynamic ownership, `ClientAdmission::reject_owned(CString)` and conversions
+from `CString` or `Box<CStr>` to `Box<ClientRejectReason>` reuse the allocation.
+Converting a validated box into `ClientAdmission` transfers ownership too.
+Constructing a box from borrowed bytes copies them. `reject_trunc(&CStr)` always
+allocates an owned reason, even if it fits, and may split UTF-8 when truncating.
+
+Before releasing the plugin borrow, the SDK copies the reason and its NUL into
+a 128-byte stack buffer. Deferred callbacks can then mutate or destroy plugin
+state without invalidating that copy. This adds no heap allocation for the
+reason; native connection inputs still use owned snapshots. Shutdown or a
+callback panic invalidating the decision discards the stack copy. Nested
+admission and invalid inputs still leave `MRES_IGNORED`. The host must keep the
+native output buffer writable until the hook returns. Native ABI and Metamod
+result handling are unchanged.
+
+Recorded engine-demo builds passed live admission tests on Linux i686 with
+Valve HLDS and ReHLDS. Those runs predate borrowed rejection reasons; the new
+representation has fixture coverage but has not been tested live. Win32 live
+testing is pending. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
 
 #### Test both outcomes with the engine demo
 
@@ -681,7 +707,7 @@ pwsh -NoProfile -File verify/windows-i686.ps1
 ```
 
 The platform scripts compare C++ and Rust sizes, alignments, and field offsets.
-They check both example binaries and the audit plugin for the four named
+They check hello-world, engine-demo, and the audit plugin for the four named
 exports and load each plugin with `dlopen` or `LoadLibrary`. The shared harness exercises metadata
 and lifecycle negotiation, hook results, player-slot translation and
 revalidation, CVar updates, command reentry, and deferred callback ordering.
@@ -735,7 +761,7 @@ Validated against alliedmodders/metamod-hl1 at
 `18a10db686702e8ae9e0fcb5b5febf8881dc9c2d` and alliedmodders/hlsdk at
 `a0edb7792a96998d349325bebab8ea41ec5cb239`.
 An earlier Ricochet smoke test on Metamod-P 1.21p109 confirmed startup,
-the first frame, and a player greeting. The current examples passed the
+the first frame, and a player greeting. Hello-world and engine-demo passed the
 Linux i686 ABI and loader harness. The recorded Ricochet core v2 run also
 verified tracing and entity discovery on six Linux i686 configurations.
 Win32 live verification remains pending. [Recorded results](certifications/ricochet-ubuntu-core-v2/20261122T115759Z-6890/certificate.md)

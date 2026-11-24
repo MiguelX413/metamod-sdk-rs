@@ -6,11 +6,11 @@ fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
         const METADATA: Metadata = METADATA;
         const CLIENT_CONNECT_PRE: bool = true;
 
-        fn client_connect(
-            &mut self,
+        fn client_connect<'a>(
+            &'a mut self,
             _: &mut Context<'_>,
-            client: &ClientConnection,
-        ) -> ClientAdmission {
+            client: &'a ClientConnection,
+        ) -> ClientAdmission<'a> {
             assert_eq!(client.address.as_c_str(), c"loopback");
             match client.name.as_bytes() {
                 b"defer" => ClientAdmission::Defer,
@@ -18,7 +18,8 @@ fn client_admission_is_synchronous_and_bounds_the_rejection_buffer() {
                 b"raw" => ClientAdmission::reject(c"\xff").unwrap(),
                 b"panic" => panic!("admission panic"),
                 b"exact" => {
-                    ClientAdmission::Reject(std::ffi::CString::new(vec![b'x'; 127]).unwrap().try_into().unwrap())
+                    ClientAdmission::reject_owned(std::ffi::CString::new(vec![b'x'; 127]).unwrap())
+                        .unwrap()
                 }
                 b"utf8" => ClientAdmission::reject_trunc(
                     &std::ffi::CString::new(format!("{}é", "x".repeat(126))).unwrap(),
@@ -106,19 +107,22 @@ fn client_admission_discards_rejection_after_nested_shutdown() {
     }
 
     #[derive(Default)]
-    struct Admission;
+    struct Admission {
+        reason: std::ffi::CString,
+    }
     impl Plugin for Admission {
         const METADATA: Metadata = METADATA;
 
-        fn client_connect(
-            &mut self,
+        fn client_connect<'a>(
+            &'a mut self,
             _: &mut Context<'_>,
-            _: &ClientConnection,
-        ) -> ClientAdmission {
+            _: &'a ClientConnection,
+        ) -> ClientAdmission<'a> {
+            self.reason = c"too late".to_owned();
             // SAFETY: This mock keeps the attached hook globals live.
             unsafe { game_shutdown::<Self>() };
             assert!(!DROPPED.get());
-            ClientAdmission::Reject(c"too late".try_into().unwrap())
+            ClientAdmission::reject(&self.reason).unwrap()
         }
     }
 
@@ -153,3 +157,201 @@ fn client_admission_discards_rejection_after_nested_shutdown() {
     assert_eq!(reason, [42; 128]);
 }
 
+#[test]
+fn borrowed_admission_is_snapshotted_before_deferred_mutation_and_shutdown() {
+    thread_local! { static DROPPED: Cell<bool> = const { Cell::new(false) }; }
+    struct Admission {
+        reason: std::ffi::CString,
+        shutdown: bool,
+    }
+    impl Default for Admission {
+        fn default() -> Self {
+            Self {
+                reason: c"before".to_owned(),
+                shutdown: false,
+            }
+        }
+    }
+    impl Plugin for Admission {
+        const METADATA: Metadata = METADATA;
+        fn client_connect<'a>(
+            &'a mut self,
+            ctx: &mut Context<'_>,
+            client: &'a ClientConnection,
+        ) -> ClientAdmission<'a> {
+            self.shutdown = client.name.as_c_str() == c"shutdown";
+            ctx.server().print(c"queue map callback");
+            assert!(!DROPPED.get());
+            ClientAdmission::reject(&self.reason).unwrap()
+        }
+        fn server_activate(&mut self, _: &mut Context<'_>) {
+            if self.shutdown {
+                // SAFETY: The fixture retains its hook globals through every callback.
+                unsafe { game_shutdown::<Self>() };
+            } else {
+                // Free the allocation that the admission decision borrowed.
+                self.reason = c"a replacement rejection reason".to_owned();
+            }
+        }
+    }
+    impl Drop for Admission {
+        fn drop(&mut self) {
+            DROPPED.set(true);
+        }
+    }
+    unsafe extern "C" fn reenter(_: *const c_char) {
+        // SAFETY: These paired native hooks use the fixture's live globals.
+        unsafe {
+            begin_map(ptr::null_mut(), 0, 0);
+            server_activate::<Admission>(ptr::null_mut(), 0, 0);
+        }
+    }
+    queried();
+    ENGINE.set(Engine {
+        print: Some(reenter),
+        ..Default::default()
+    });
+    let mut globals = MetaGlobals::default();
+    let mut functions = MetaFunctions::default();
+    // SAFETY: Hook globals, tables, inputs and the 128-byte output stay allocated.
+    unsafe {
+        assert_eq!(
+            attach::<Admission>(PT_STARTUP, &mut functions, &raw mut globals),
+            1
+        );
+        let mut output = [42; 129];
+        assert_eq!(
+            client_connect::<Admission>(
+                ptr::null_mut(),
+                c"replace".as_ptr(),
+                c"loopback".as_ptr(),
+                output.as_mut_ptr()
+            ),
+            0
+        );
+        assert_eq!(globals.mres, MRES_SUPERCEDE);
+        assert_eq!(
+            &output[..7],
+            &[
+                b'b' as c_char,
+                b'e' as c_char,
+                b'f' as c_char,
+                b'o' as c_char,
+                b'r' as c_char,
+                b'e' as c_char,
+                0
+            ]
+        );
+        assert_eq!(output[7..], [42; 122]);
+        assert!(!DROPPED.get());
+        output.fill(42);
+        assert_eq!(
+            client_connect::<Admission>(
+                ptr::null_mut(),
+                c"shutdown".as_ptr(),
+                c"loopback".as_ptr(),
+                output.as_mut_ptr()
+            ),
+            1
+        );
+        assert!(DROPPED.get());
+        assert_eq!(globals.mres, MRES_IGNORED);
+        assert_eq!(output, [42; 129]);
+    }
+}
+
+#[test]
+fn borrowed_admission_is_discarded_after_deferred_panic() {
+    #[derive(Default)]
+    struct Admission {
+        reason: std::ffi::CString,
+    }
+    impl Plugin for Admission {
+        const METADATA: Metadata = METADATA;
+        fn client_connect<'a>(
+            &'a mut self,
+            _: &mut Context<'_>,
+            _: &'a ClientConnection,
+        ) -> ClientAdmission<'a> {
+            self.reason = c"must be discarded".to_owned();
+            submit::<Self>(Event::Activate);
+            ClientAdmission::reject(&self.reason).unwrap()
+        }
+        fn server_activate(&mut self, _: &mut Context<'_>) {
+            self.reason = c"changed".to_owned();
+            panic!("deferred callback panic");
+        }
+    }
+    queried();
+    let mut globals = MetaGlobals::default();
+    let mut functions = MetaFunctions::default();
+    let mut output = [42; 128];
+    // SAFETY: The fixture keeps all native inputs and hook globals live.
+    unsafe {
+        assert_eq!(
+            attach::<Admission>(PT_STARTUP, &mut functions, &raw mut globals),
+            1
+        );
+        assert_eq!(
+            client_connect::<Admission>(
+                ptr::null_mut(),
+                c"client".as_ptr(),
+                c"loopback".as_ptr(),
+                output.as_mut_ptr()
+            ),
+            1
+        );
+        assert_eq!(globals.mres, MRES_IGNORED);
+        assert_eq!(output, [42; 128]);
+        assert!(matches!(
+            STATE.get(),
+            State::Attached { disabled: true, .. }
+        ));
+        game_shutdown::<Admission>();
+    }
+}
+
+#[test]
+fn admission_can_borrow_the_owned_connection_snapshot() {
+    #[derive(Default)]
+    struct Admission;
+    impl Plugin for Admission {
+        const METADATA: Metadata = METADATA;
+        fn client_connect<'a>(
+            &'a mut self,
+            _: &mut Context<'_>,
+            client: &'a ClientConnection,
+        ) -> ClientAdmission<'a> {
+            ClientAdmission::reject(&client.name).unwrap()
+        }
+    }
+    queried();
+    let mut globals = MetaGlobals::default();
+    let mut functions = MetaFunctions::default();
+    let mut output = [42; 129];
+    // SAFETY: All inputs, output storage, and hook globals remain live.
+    unsafe {
+        assert_eq!(
+            attach::<Admission>(PT_STARTUP, &mut functions, &raw mut globals),
+            1
+        );
+        for len in [0, 1, 127] {
+            let input = std::ffi::CString::new(vec![0xff; len]).unwrap();
+            output.fill(42);
+            assert_eq!(
+                client_connect::<Admission>(
+                    ptr::null_mut(),
+                    input.as_ptr(),
+                    c"loopback".as_ptr(),
+                    output.as_mut_ptr()
+                ),
+                0
+            );
+            assert_eq!(globals.mres, MRES_SUPERCEDE);
+            assert!(output[..len].iter().all(|&byte| byte as u8 == 0xff));
+            assert_eq!(output[len], 0);
+            assert!(output[len + 1..].iter().all(|&byte| byte == 42));
+        }
+        game_shutdown::<Admission>();
+    }
+}

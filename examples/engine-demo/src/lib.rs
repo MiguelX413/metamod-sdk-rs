@@ -36,18 +36,15 @@ impl Plugin for EngineDemo {
 
     const CLIENT_CONNECT_PRE: bool = true;
 
-    fn client_connect(
-        &mut self,
+    fn client_connect<'a>(
+        &'a mut self,
         ctx: &mut Context<'_>,
-        client: &ClientConnection,
-    ) -> ClientAdmission {
+        client: &'a ClientConnection,
+    ) -> ClientAdmission<'a> {
         if client.name.as_c_str() == c"RustAdmissionReject" {
             ctx.server().print(c"Rust admission demo: rejected\n");
-            ClientAdmission::Reject(
-                c"Rust admission demo rejected this name."
-                    .try_into()
-                    .expect("short reason"),
-            )
+            ClientAdmission::reject(c"Rust admission demo rejected this name.")
+                .expect("short reason")
         } else {
             ctx.server().print(c"Rust admission demo: deferred\n");
             ClientAdmission::Defer

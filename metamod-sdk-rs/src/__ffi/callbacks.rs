@@ -36,16 +36,22 @@ pub(super) unsafe extern "C" fn client_connect<P: Plugin>(
         };
         match plugin.client_connect(context, &ClientConnection { name, address }) {
             ClientAdmission::Defer => HookResult::Ignored,
-            ClientAdmission::Reject(reason) => HookResult::Supercede(Some(reason)),
+            ClientAdmission::Reject(reason) => {
+                let bytes = reason.as_ref().as_c_str().to_bytes_with_nul();
+                let mut snapshot = [0; 128];
+                // Copy while the plugin and input snapshot are still borrowed.
+                // Deferred callbacks can mutate or drop them during drain.
+                snapshot[..bytes.len()].copy_from_slice(bytes);
+                HookResult::Supercede(Some((snapshot, bytes.len())))
+            }
         }
     });
-    if let Some(reason) = reason {
-        let bytes = reason.as_c_str().to_bytes_with_nul();
+    if let Some((snapshot, len)) = reason {
         // SAFETY: The host supplies a writable 128-byte buffer through the
-        // entire hook, including native reentry. The owned reason validates
-        // at most 127 payload bytes plus its NUL; no truncation occurs here.
+        // entire hook, including native reentry. The local snapshot contains
+        // at most 127 validated payload bytes plus its NUL.
         unsafe {
-            ptr::copy_nonoverlapping(bytes.as_ptr().cast(), reject, bytes.len());
+            ptr::copy_nonoverlapping(snapshot.as_ptr().cast(), reject, len);
         }
         return 0;
     }
