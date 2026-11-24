@@ -29,7 +29,8 @@ pub use engine::{Command, ConsoleName, CvarValue, EngineError, OwnedConsoleName,
 pub use hooks::{ClientAdmission, ClientConnection, HookResult, KeyValueEvent, PostHookResult};
 pub use message::{
     MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError, MessageRecipient,
-    RegisteredUserMessage, StaleMessageRecipient, UserMessagePayload, UserMessageSize,
+    MessageSendError, MessageSender, RegisteredUserMessage, StaleMessageRecipient,
+    UserMessagePayload, UserMessageSize,
 };
 pub use trace::{
     EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial, Hull,
@@ -51,11 +52,11 @@ pub mod prelude {
         ClientAdmission, ClientConnection, Command, ConsoleName, Context, CvarValue, EngineError,
         EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial,
         HookResult, Hull, KeyValueEvent, MAX_USER_MESSAGE_BYTES, MessageLookupError,
-        MessagePayloadError, MessageRecipient, MetaMod, Metadata, MetamodMessage,
-        MetamodMessageTooLong, OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId,
-        Plugin, PostHookResult, RegisteredUserMessage, Server, StaleMessageRecipient, TraceError,
-        TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment, UserMessagePayload,
-        UserMessageSize, console_name, cvar_value, export_plugin,
+        MessagePayloadError, MessageRecipient, MessageSendError, MessageSender, MetaMod, Metadata,
+        MetamodMessage, MetamodMessageTooLong, OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot,
+        PlayerUserId, Plugin, PostHookResult, RegisteredUserMessage, Server, StaleMessageRecipient,
+        TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
+        UserMessagePayload, UserMessageSize, console_name, cvar_value, export_plugin,
     };
 }
 

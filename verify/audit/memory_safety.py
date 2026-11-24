@@ -129,6 +129,8 @@ def markdown(report):
 
 
 MIRI_SCENARIOS = (
+    "message::tests::send_guard_releases_after_rust_unwind",
+    "__ffi::tests::message_send_preserves_bytes_and_rejects_nested_and_interrupted_sends",
     "__ffi::tests::client_admission_is_synchronous_and_bounds_the_rejection_buffer",
     "__ffi::tests::client_admission_discards_rejection_after_nested_shutdown",
     "__ffi::tests::native_print_reentry_keeps_the_plugin_and_borrowed_buffer_live",
@@ -147,7 +149,7 @@ def miri_evidence(repo, output):
     output = output.resolve()
     output.mkdir(parents=True)
     artifacts = sorted((repo / "metamod-sdk-rs" / "src").glob("*.rs"))
-    artifacts.extend(repo / name for name in ("Cargo.lock", "metamod-sys/build.rs",
+    artifacts.extend(repo / name for name in ("Cargo.lock", "metamod-sys/build.rs", "metamod-sys/wrapper.hpp",
                                               "metamod-sys/src/lib.rs"))
     record = {
         "tool": "Miri",

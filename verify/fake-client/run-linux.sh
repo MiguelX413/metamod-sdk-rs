@@ -106,6 +106,7 @@ for engine in linux-hlds linux-rehlds; do
         message-nested-write)
           ((status == 0))
           grep -Fx 'MESSAGE_HOOK nested write returned' "$log"
+          grep -Fx 'MESSAGE_HOOK PASS plugin write bypassed observer' "$log"
           grep -Fx 'MESSAGE_PROBE outer completed' "$log"
           ;;
         *)

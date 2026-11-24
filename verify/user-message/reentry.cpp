@@ -10,6 +10,7 @@ static meta_globals_t *meta;
 static const char *mode;
 static bool entered;
 static int message_id;
+static unsigned write_hook_calls;
 static plugin_info_t info = {
     META_INTERFACE_VERSION, "SDK user-message reentry probe", "1", "",
     "metamod-sdk-rs", "", "MSGPROBE", PT_STARTUP, PT_NEVER
@@ -21,6 +22,7 @@ static void mark(const char *label) {
 }
 
 static void write_byte(int value) {
+    ++write_hook_calls;
     meta->mres = MRES_IGNORED;
     if (entered || value != 17 || std::strcmp(mode, "post-end") == 0) return;
     entered = true;
@@ -29,8 +31,14 @@ static void write_byte(int value) {
         engine.pfnMessageBegin(MSG_ALL, message_id, nullptr, nullptr);
         mark("unexpected nested begin return");
     } else if (std::strcmp(mode, "nested-write") == 0) {
+        const unsigned before = write_hook_calls;
         engine.pfnWriteByte(23);
         mark("nested write returned");
+        // Plugin engine-table calls bypass classic Metamod's GameDLL hooks.
+        // Count actual hook entries instead of inferring bypass from a guard.
+        mark(write_hook_calls == before
+            ? "PASS plugin write bypassed observer"
+            : "FAIL plugin write reentered observer");
     } else if (std::strcmp(mode, "nested-end") == 0) {
         engine.pfnWriteByte(23);
         engine.pfnMessageEnd();

@@ -380,8 +380,10 @@ C-string name, and `RegisteredUserMessage::validate_payload` checks its
 declared size. `ctx.message_recipient(player_id)` checks a current tracked
 session and its live edict. These observations can expire during later
 native calls. Recipient validation checks identity and leaves protocol
-readiness and eligibility for future delivery checks. Native sending
-remains unavailable pending an enforceable ownership contract. Live Linux
+readiness and eligibility for future delivery checks. Scoped native sending
+requires `unsafe { ctx.message_sender() }` and an externally established host
+contract. Its `send_to(name, &payload, player_id)` method supports reliable
+unicast with fresh registration, size, and session validation. Live Linux
 i686 probes demonstrated interference through nested native message calls.
 [Native reentry results](user-message-reentry.md) · [Messaging milestones](api-coverage.md#validated-user-messages)
 

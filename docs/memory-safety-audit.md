@@ -48,7 +48,9 @@ The collector requires each selected test to report exactly one passing
 test. It preserves the Miri version, commands, input source hashes, logs
 and their hashes. CI runs it on Linux x86-64. Admission tests cover bounded
 rejection output, nested calls, panic containment, and shutdown during
-admission. The other selected mocks exercise
+admission. Scoped-send mocks check exact bytes, validation, nested-send
+rejection, lifecycle interruption, and guard release after a Rust unwind.
+The other selected mocks exercise
 nested shutdown during borrowed console output, callback panic and
 reentrancy, player slot reuse, expired CVar strings, and a retired edict
 arena. They execute Rust callbacks with the C calling convention. Miri

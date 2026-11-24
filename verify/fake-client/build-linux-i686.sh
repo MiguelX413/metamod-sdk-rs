@@ -7,7 +7,8 @@ case "${2:-fixture}" in
   fixture) ;;
   stock) source_file=verify/fake-client/ricochet_probe.cpp ;;
   message) source_file=verify/user-message/reentry.cpp ;;
-  *) echo 'Expected fixture, stock, or message' >&2; exit 2 ;;
+  recorder) source_file=verify/user-message/recorder.cpp ;;
+  *) echo 'Expected fixture, stock, message, or recorder' >&2; exit 2 ;;
 esac
 "${CXX:-c++}" -m32 -std=c++11 -Wall -Wextra -Werror -DLINUX -DGNUC -shared -fPIC \
   -I"$hlsdk/dlls" -I"$hlsdk/engine" -I"$hlsdk/common" -I"$hlsdk/pm_shared" -I"$hlsdk/public" \

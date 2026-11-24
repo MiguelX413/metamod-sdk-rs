@@ -1,6 +1,6 @@
 //! Owned user-message payloads, registration lookup, and recipient validation.
 
-use std::{ffi::CStr, fmt};
+use std::{cell::Cell, ffi::CStr, fmt};
 
 /// Maximum user-message payload size in bytes, excluding protocol framing.
 pub const MAX_USER_MESSAGE_BYTES: usize = 192;
@@ -9,7 +9,8 @@ pub const MAX_USER_MESSAGE_BYTES: usize = 192;
 ///
 /// Construction is independent of the server and makes no engine calls.
 /// The message's protocol, registered size and recipient must be checked
-/// separately before native transmission. The SDK currently provides no send API.
+/// separately before native transmission. Sending requires an explicit unsafe
+/// host opt-in through `Context::message_sender`.
 ///
 /// ```
 /// use metamod_sdk_rs::UserMessagePayload;
@@ -243,6 +244,14 @@ impl crate::Context<'_> {
         &self,
         player: crate::PlayerId,
     ) -> Result<MessageRecipient, StaleMessageRecipient> {
+        self.resolve_message_recipient(player)?;
+        Ok(MessageRecipient(player))
+    }
+
+    fn resolve_message_recipient(
+        &self,
+        player: crate::PlayerId,
+    ) -> Result<*mut metamod_sys::raw::edict_t, StaleMessageRecipient> {
         let engine = crate::__ffi::engine().ok_or(StaleMessageRecipient)?;
         let (current, serial) =
             crate::__ffi::player_session(player.slot()).ok_or(StaleMessageRecipient)?;
@@ -251,12 +260,141 @@ impl crate::Context<'_> {
         }
         let entity = crate::trace::tracked_entity(player.slot().get(), serial)
             .ok_or(StaleMessageRecipient)?;
-        entity.resolve(engine).ok_or(StaleMessageRecipient)?;
+        let edict = entity.resolve(engine).ok_or(StaleMessageRecipient)?;
         // The engine lookup can synchronously disconnect or replace the player.
         if crate::__ffi::player_session(player.slot()) != Some((player, serial)) {
             return Err(StaleMessageRecipient);
         }
-        Ok(MessageRecipient(player))
+        Ok(edict)
+    }
+}
+
+thread_local! {
+    static SENDING: Cell<bool> = const { Cell::new(false) };
+}
+
+// Releases only SDK bookkeeping. Native ownership may be lost after interruption.
+struct SendGuard;
+
+impl SendGuard {
+    fn acquire() -> Result<Self, MessageSendError> {
+        if SENDING.replace(true) {
+            return Err(MessageSendError::Busy);
+        }
+        Ok(Self)
+    }
+}
+
+impl Drop for SendGuard {
+    fn drop(&mut self) {
+        SENDING.set(false);
+    }
+}
+
+/// Scoped reliable, single-recipient sends under an explicitly established host contract.
+pub struct MessageSender<'context, 'callback> {
+    context: &'context crate::Context<'callback>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageSendError {
+    Busy,
+    Unavailable,
+    Lookup(MessageLookupError),
+    Payload(MessagePayloadError),
+    StaleRecipient,
+    /// Observed lifecycle invalidation. No native cleanup is attempted.
+    Interrupted,
+}
+
+impl fmt::Display for MessageSendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Busy => f.write_str("an SDK message send is already in progress"),
+            Self::Unavailable => f.write_str("native messaging is unavailable"),
+            Self::Lookup(error) => error.fmt(f),
+            Self::Payload(error) => error.fmt(f),
+            Self::StaleRecipient => f.write_str("message recipient is stale"),
+            Self::Interrupted => f.write_str("native message send was interrupted"),
+        }
+    }
+}
+
+impl std::error::Error for MessageSendError {}
+
+impl<'callback> crate::Context<'callback> {
+    /// Opt into a host contract for sends during this callback.
+    ///
+    /// # Safety
+    /// For every send through this sender, the engine must be idle when begin
+    /// is invoked, and all three native callbacks must preserve message ownership,
+    /// recipient identity/allocation and map lifetime until end returns. Extensions and
+    /// other plugins must not inject writes, end the message, or retain borrowed
+    /// inputs. Native message hooks must accept byte-wise encoding rather than
+    /// depending on original short/long/string writer boundaries. Establish
+    /// this for the deployed engine and callback phase.
+    ///
+    /// Every supplied name/payload must match the receiving client's protocol,
+    /// and recipients must be ready to parse it. Byte-length validation alone
+    /// cannot establish these requirements. The caller must constrain all uses
+    /// of the returned sender accordingly. This opt-in does not verify the host.
+    pub unsafe fn message_sender(&self) -> MessageSender<'_, 'callback> {
+        MessageSender { context: self }
+    }
+}
+
+impl MessageSender<'_, '_> {
+    /// Resolve the registration and recipient again, then send reliably to one player.
+    ///
+    /// Success means the native sequence returned, with no acknowledgement of delivery.
+    /// No user closures or Rust formatting execute between begin and end.
+    pub fn send_to(
+        &self,
+        name: &CStr,
+        payload: &UserMessagePayload,
+        player: crate::PlayerId,
+    ) -> Result<(), MessageSendError> {
+        let _guard = SendGuard::acquire()?;
+        let map = crate::trace::active_map().ok_or(MessageSendError::Unavailable)?;
+        let engine = crate::__ffi::engine().ok_or(MessageSendError::Unavailable)?;
+        let (Some(begin), Some(write), Some(end)) =
+            (engine.message_begin, engine.write_byte, engine.message_end)
+        else {
+            return Err(MessageSendError::Unavailable);
+        };
+        let message = self
+            .context
+            .metamod()
+            .user_message(name)
+            .map_err(MessageSendError::Lookup)?;
+        message
+            .validate_payload(payload)
+            .map_err(MessageSendError::Payload)?;
+        let edict = self
+            .context
+            .resolve_message_recipient(player)
+            .map_err(|_| MessageSendError::StaleRecipient)?;
+        let check = || {
+            if crate::trace::active_map() == Some(map) && self.context.is_player_current(player) {
+                Ok(())
+            } else {
+                Err(MessageSendError::Interrupted)
+            }
+        };
+        check()?;
+        // SAFETY: The opt-in establishes idle entry, valid recipient allocation,
+        // synchronous input lifetimes and exclusive ownership through native end.
+        // Registration and session were just validated. MSG_ONE is reliable unicast.
+        unsafe { begin(1, i32::from(message.id), std::ptr::null(), edict) };
+        check()?;
+        for &byte in payload.as_bytes() {
+            // SAFETY: The opted-in host preserves this native message and recipient.
+            unsafe { write(i32::from(byte)) };
+            check()?;
+        }
+        // SAFETY: The same host contract preserves ownership through end.
+        unsafe { end() };
+        check()
     }
 }
 
@@ -265,6 +403,16 @@ mod tests {
     use std::ffi::CString;
 
     use super::*;
+
+    #[test]
+    fn send_guard_releases_after_rust_unwind() {
+        let _ = std::panic::catch_unwind(|| {
+            let _guard = SendGuard::acquire().unwrap();
+            assert!(matches!(SendGuard::acquire(), Err(MessageSendError::Busy)));
+            panic!("controlled Rust unwind outside native calls");
+        });
+        assert!(SendGuard::acquire().is_ok());
+    }
 
     #[test]
     fn rejects_invalid_ids_and_sizes_and_checks_registered_payload_size() {

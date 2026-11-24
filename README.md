@@ -88,8 +88,8 @@ verification. The [live Ricochet core v2 results](docs/certifications/ricochet-u
 cover six recorded Linux i686 configurations. Live coverage varies by feature
 and host. Plugins load at server startup. Stop the server before removing or replacing a plugin. The
 native host must honor the documented [FFI and lifetime contracts](docs/sdk-reference.md#architecture-and-safety).
-User-message payloads can be built and validated. Native sending is still
-pending. [Messaging roadmap](docs/api-coverage.md#validated-user-messages)
+User-message payloads can be built and validated. Scoped native sending
+requires an explicit unsafe host opt-in. [Messaging roadmap](docs/api-coverage.md#validated-user-messages)
 
 ## Documentation
 

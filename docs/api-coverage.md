@@ -15,7 +15,7 @@ pointees have exposed fields or that the functions are safe to call.
 | Engine console, commands and CVars, `engine/eiface.h` `enginefuncs_t`, `common/cvardef.h` | Engine slots and CVar layout generated | Native byte printing, validated console names for registration and dispatch, owned command tokens, owned CVar reads, validated borrowed CVar writes | Native harness exercises reentrant commands and CVar storage. Server command execution and arbitrary engine callback hooks remain raw. |
 | Engine players and entities, `engine/eiface.h`, `engine/edict.h`, `engine/progdefs.h` | Callback slots and edict, entvars, and engine globals layouts | Session-aware player lookup, typed `PlayerUserId` and owned auth strings, index lookup, bounded edict discovery, owned spatial and classification snapshots, and retained string keyvalues | Native harness exercises session revalidation. All entity handles check the map epoch, edict serial, and free flag. Discovery and handle resolution require a validated map capacity from engine globals. The x86 probes cover vacant and out-of-range slots, spatial reads, and map transitions. The string-table probe checks signed offsets, reused buffers, and map invalidation. General entity creation/removal and GameDLL-private stored keyvalues remain raw; fake clients use the separate adapter lifecycle below. The keyvalue hook observes dispatched inputs, including keys consumed at load time. |
 | Engine tracing, physics and movement, `engine/eiface.h`, `pm_shared/pm_defs.h` | Engine slots and trace payload layout; movement payloads remain opaque | Validated finite trace segments, owned line and standard hull results, collision mode and generation-checked skip entity | x86 layout/loader probes cover line hit, hull miss, skip entity, and a map transition during a trace. Movement and physics state still require callback-scoped mutation and reentry analysis. |
-| Engine fake clients, messages, events, sound and resources, `engine/eiface.h` | Engine slots | Scoped fake-client identity and queued removal, owned user-message payload construction | The stock Ricochet adapter is verified on two Linux i686 configurations. Payload tests cover wire encoding, fixed-size checks, and the 192-byte budget. Live begin/write/end probes demonstrate shared native message state and reentry interference. Safe native sending remains unavailable pending an enforceable ownership contract. Resource registration is phase-dependent. |
+| Engine fake clients, messages, events, sound and resources, `engine/eiface.h` | Engine slots | Scoped fake-client identity and queued removal, owned user-message payload construction | The stock Ricochet adapter is verified on two Linux i686 configurations. Payload tests cover wire encoding, fixed-size checks, and the 192-byte budget. Live begin/write/end probes demonstrate shared native message state and reentry interference. Scoped reliable unicast requires explicit unsafe host opt-in; portable exclusive ownership cannot be enforced. Resource registration is phase-dependent. |
 | Other SDK data and auxiliary interfaces, `common/`, `engine/`, `pm_shared/`, `dlls/` | Selected transitively referenced types; no blanket header coverage | Pending | Add audited public ABI types by header family. Keep game implementation types and templates outside the ABI surface. |
 
 The Linux i686 layout probes and loader harness passed for both examples.
@@ -54,9 +54,10 @@ return `EngineError::Unavailable`.
    and on ReHLDS with Metamod-R. [Live Ricochet results](runtime-audit.md#live-ricochet-client-admission-results)
 2. Finish Win32 verification for [fake-client lifecycle management](#fake-client-lifecycle-management).
    The Linux i686 stock Ricochet milestone is complete on the tested hosts.
-3. Continue [validated user messages](#validated-user-messages) after
-   the payload and lookup increments, then audit movement and physics and
-   expand raw payload coverage family by family.
+3. Finish Win32 verification for [validated user messages](#validated-user-messages).
+   The Linux i686 scoped-send milestone is complete for the three recorded
+   stock Ricochet deployments. Then audit movement and physics and expand
+   raw payload coverage family by family.
 4. Build [Memory Contracts Validation v1](#memory-contracts-validation-v1)
    using the existing native fixtures, runtime reports, and certification
    infrastructure.
@@ -90,15 +91,29 @@ Movement, bot AI, and game-specific setup are later work.
    that preserve the existing payload.
 2. **Message and recipient validation complete.** Resolve the registered
    ID and size through Metamod on the active map. Validate recipients by
-   `PlayerId` and current edict identity. Recheck both at any future send
-   boundary.
-3. **Establish native send guarantees.** Linux i686 probes on Valve HLDS
+   `PlayerId` and current edict identity. The scoped sender rechecks both
+   at the send boundary.
+3. **Native ownership investigation complete for Linux scope.** Linux i686 probes on Valve HLDS
    and ReHLDS with classic Metamod confirmed shared message state and
-   interference from nested begin/write/end calls. No clients were connected,
-   so payload integrity, delivery, and fixed-size enforcement remain unverified.
-   Establish enforceable message ownership and delivery requirements before
-   exposing a safe send operation.
+   interference from nested begin/write/end calls. These reentry probes ran
+   without clients. Separate scoped-send runs verified selected payloads below.
+   The ownership investigation confirmed that plugin engine-table writes
+   bypass classic Metamod observers on both engines. The portable ABI cannot
+   enforce exclusivity. Establish an explicit host integration contract and
+   delivery requirements for each opted-in deployment.
+4. **Linux scoped-send milestone complete.** Explicit unsafe host opt-in permits reliable
+   unicast using prepared payloads and fresh registration/session validation.
+   Nested SDK sends are rejected. Map/shutdown interruption stops native calls
+   without automatic end. Stock Ricochet TextMsg and ScreenFade delivery and
+   exact client-demo payload bytes passed on Valve HLDS and ReHLDS with classic
+   Metamod, and on ReHLDS with Metamod-R, on Linux i686. Win32 sending remains
+   unverified. These were controlled deployments without message-hook plugins.
+   Client protocol and delivery still require review for each deployment.
    [Live begin/write/end reentry results](user-message-reentry.md)
+5. **Win32 verification pending.** Run the ABI/loader and scoped-send regressions
+   on Windows, then verify reliable delivery and exact client-demo payloads
+   on isolated stock Ricochet servers. Preserve component identities, artifact
+   hashes, and normal shutdown evidence as in the Linux runs.
 
 ### Memory Contracts Validation v1
 

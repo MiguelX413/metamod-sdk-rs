@@ -4,9 +4,9 @@ use metamod_sys::{
     raw::{
         MetamodAddServerCommand, MetamodCVarGetPointer, MetamodCVarGetString, MetamodCVarRegister,
         MetamodCVarSetString, MetamodCmd_Argc, MetamodCmd_Argv, MetamodCreateFakeClient,
-        MetamodGetPlayerAuthId, MetamodGetPlayerUserId, MetamodIndexOfEdict,
-        MetamodPEntityOfEntIndex, MetamodServerCommand, MetamodServerPrint, MetamodSzFromIndex,
-        MetamodTraceHull, MetamodTraceLine, cvar_t,
+        MetamodGetPlayerAuthId, MetamodGetPlayerUserId, MetamodIndexOfEdict, MetamodMessageBegin,
+        MetamodMessageEnd, MetamodPEntityOfEntIndex, MetamodServerCommand, MetamodServerPrint,
+        MetamodSzFromIndex, MetamodTraceHull, MetamodTraceLine, MetamodWriteByte, cvar_t,
     },
 };
 use std::{
@@ -44,6 +44,9 @@ macro_rules! engine_callbacks {
 engine_callbacks! {
     create_fake_client: MetamodCreateFakeClient = pfnCreateFakeClient,
     queue_server_command: MetamodServerCommand = pfnServerCommand,
+    message_begin: MetamodMessageBegin = pfnMessageBegin,
+    message_end: MetamodMessageEnd = pfnMessageEnd,
+    write_byte: MetamodWriteByte = pfnWriteByte,
     print: MetamodServerPrint = pfnServerPrint,
     index: MetamodIndexOfEdict = pfnIndexOfEdict,
     register_cvar: MetamodCVarRegister = pfnCVarRegister,
