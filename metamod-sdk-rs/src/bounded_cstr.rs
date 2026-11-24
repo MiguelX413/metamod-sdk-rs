@@ -119,16 +119,19 @@ impl<const N: usize> BoundedCStr<N> {
         &self.0
     }
 
-    // A short input remains borrowed; the caller's buffer is used only on overflow.
-    pub(crate) fn borrow_trunc<'a>(value: &'a CStr, buffer: &'a mut [u8]) -> &'a Self {
+    /// Borrow fitting inputs without touching `buffer`. Otherwise, truncate
+    /// into N payload bytes plus a NUL. Returns `None` without modifying the
+    /// buffer if it cannot hold those bytes; no `N + 1` arithmetic is needed.
+    pub(crate) fn borrow_trunc<'a>(value: &'a CStr, buffer: &'a mut [u8]) -> Option<&'a Self> {
         if let Ok(value) = Self::new(value) {
-            return value;
+            return Some(value);
         }
-        buffer[..N].copy_from_slice(&value.to_bytes()[..N]);
-        buffer[N] = 0;
-        let value =
-            CStr::from_bytes_with_nul(&buffer[..=N]).expect("a C string payload has no NUL");
-        Self::new(value).expect("truncated payload fits")
+        let storage = buffer.get_mut(..=N)?;
+        let (terminator, payload) = storage.split_last_mut()?;
+        payload.copy_from_slice(&value.to_bytes()[..N]);
+        *terminator = 0;
+        let value = CStr::from_bytes_with_nul(storage).expect("a C string payload has no NUL");
+        Some(Self::new(value).expect("truncated payload fits"))
     }
 
     fn try_box(value: Box<CStr>) -> Result<Box<Self>, TooLong> {
@@ -338,10 +341,60 @@ mod tests {
     }
 
     #[test]
+    fn truncation_checks_capacity_before_writing() {
+        for capacity in 0..=3 {
+            let mut storage = vec![42; capacity];
+            assert!(BoundedCStr::<3>::borrow_trunc(c"four", &mut storage).is_none());
+            assert_eq!(storage, vec![42; capacity]);
+        }
+        let mut exact = [42; 4];
+        assert_eq!(
+            BoundedCStr::<3>::borrow_trunc(c"four", &mut exact)
+                .unwrap()
+                .to_bytes_with_nul(),
+            b"fou\0"
+        );
+        assert_eq!(exact, *b"fou\0");
+        let mut untouched = [42];
+        for input in [c"", c"abc"] {
+            assert_eq!(
+                BoundedCStr::<3>::borrow_trunc(input, &mut untouched)
+                    .unwrap()
+                    .as_ptr(),
+                input.as_ptr()
+            );
+            assert_eq!(untouched, [42]);
+        }
+        let mut empty = [];
+        assert_eq!(
+            BoundedCStr::<0>::borrow_trunc(c"", &mut empty)
+                .unwrap()
+                .to_bytes_with_nul(),
+            b"\0"
+        );
+        assert!(BoundedCStr::<0>::borrow_trunc(c"x", &mut empty).is_none());
+        let mut nul = [42];
+        assert_eq!(
+            BoundedCStr::<0>::borrow_trunc(c"x", &mut nul)
+                .unwrap()
+                .to_bytes_with_nul(),
+            b"\0"
+        );
+        assert_eq!(nul, [0]);
+        let input = c"abc";
+        assert_eq!(
+            BoundedCStr::<{ usize::MAX }>::borrow_trunc(input, &mut empty)
+                .unwrap()
+                .as_ptr(),
+            input.as_ptr()
+        );
+    }
+
+    #[test]
     fn explicit_truncation_counts_bytes_and_keeps_a_terminator() {
         let input = CString::new("xé").unwrap();
         let mut storage = [42; 4];
-        let truncated = BoundedCStr::<2>::borrow_trunc(&input, &mut storage);
+        let truncated = BoundedCStr::<2>::borrow_trunc(&input, &mut storage).unwrap();
         assert_eq!(truncated.to_bytes_with_nul(), b"x\xc3\0");
         assert_eq!(storage, [b'x', 0xc3, 0, 42]);
         assert_eq!(
@@ -354,13 +407,17 @@ mod tests {
         );
         let mut zero = [42; 2];
         assert_eq!(
-            BoundedCStr::<0>::borrow_trunc(&input, &mut zero).to_bytes_with_nul(),
+            BoundedCStr::<0>::borrow_trunc(&input, &mut zero)
+                .unwrap()
+                .to_bytes_with_nul(),
             b"\0"
         );
         assert_eq!(zero, [0, 42]);
         let mut unused = [];
         assert_eq!(
-            BoundedCStr::<3>::borrow_trunc(&input, &mut unused).as_ptr(),
+            BoundedCStr::<3>::borrow_trunc(&input, &mut unused)
+                .unwrap()
+                .as_ptr(),
             input.as_ptr()
         );
     }

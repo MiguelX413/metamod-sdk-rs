@@ -356,6 +356,7 @@ fn utility_message<'a>(
     buffer: &'a mut [u8; MAX_UTILITY_MESSAGE + 1],
 ) -> &'a MetamodMessage {
     BoundedCStr::<MAX_UTILITY_MESSAGE>::borrow_trunc(message, buffer)
+        .expect("utility buffer holds 1021 payload bytes and a NUL")
         .as_c_str()
         .try_into()
         .expect("truncated message fits")

@@ -133,6 +133,7 @@ MIRI_SCENARIOS = (
     "bounded_cstr::tests::boxed_traits_keep_c_string_equality_and_hashing",
     "bounded_cstr::tests::owned_strings_round_trip_through_boxed_views_without_copying",
     "bounded_cstr::tests::explicit_truncation_counts_bytes_and_keeps_a_terminator",
+    "bounded_cstr::tests::truncation_checks_capacity_before_writing",
     "runtime::tests::owned_metamod_messages_validate_and_reuse_allocations",
     "hooks::tests::rejection_reasons_require_explicit_truncation",
     "message::tests::send_guard_releases_after_rust_unwind",

@@ -12,6 +12,8 @@ use std::{
 ///
 /// Preserves native bytes, including non-UTF-8 text. Ordinary construction
 /// rejects overflow; use [`ClientAdmission::reject_trunc`] to opt into truncation.
+/// Successful construction from `&CStr` allocates and copies. Consuming a
+/// `CString` or `Box<CStr>` transfers its allocation instead.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ClientRejectReason(BoundedCString<127>);
 
@@ -241,6 +243,7 @@ impl ClientAdmission {
     }
 
     /// Reject with at most 127 native payload bytes. Truncation can split UTF-8.
+    /// Allocates and copies the reason even when it already fits.
     pub fn reject_trunc(reason: &CStr) -> Self {
         Self::Reject(ClientRejectReason(BoundedCString::new_trunc(reason)))
     }

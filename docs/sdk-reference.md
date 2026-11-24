@@ -451,9 +451,10 @@ to 127 payload bytes plus its terminating NUL in GoldSrc's 128-byte buffer.
 construct the reason with `ClientRejectReason::new(&CStr)` or `try_into()`.
 Oversized reasons return
 `ClientRejectReasonTooLong`; ordinary construction never truncates.
-`CString` and `Box<CStr>` conversions reuse owned storage. If truncation is
-intended, call `ClientAdmission::reject_trunc(&CStr)`, which cuts by bytes
-and can split UTF-8. Nested admission, missing or unterminated inputs,
+Successful construction from `&CStr` allocates and copies the reason;
+consuming `CString` and `Box<CStr>` conversions reuse owned storage.
+`ClientAdmission::reject_trunc(&CStr)` always allocates and copies, cuts by
+bytes, and can split UTF-8. Nested admission, missing or unterminated inputs,
 and plugin panics
 fall back to `MRES_IGNORED`. The host must supply readable inputs and keep
 the output buffer writable until the hook returns.
