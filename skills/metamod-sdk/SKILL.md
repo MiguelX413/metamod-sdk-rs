@@ -79,7 +79,8 @@ consumer's chosen registration path.
   or guarantee that their contents are still current.
 - Use bytes or handle UTF-8 conversion failure for native strings. Respect
   documented byte limits. `MetamodMessage` and `ClientRejectReason` reject
-  overflow; use explicitly named `_trunc` methods only when intended.
+  overflow. Prefer `ctx.metamod().print_console_trunc` and `log_trunc` for
+  ordinary output; use strict methods when rejecting oversized text is needed.
   Prefer `ClientAdmission::reject(c"reason")` for literals. Borrowed reasons may
   reference plugin state or the connection snapshot; the SDK copies them before
   draining deferred callbacks. Use `reject_owned` to transfer a `CString`.

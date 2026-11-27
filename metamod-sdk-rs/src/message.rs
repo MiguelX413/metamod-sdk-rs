@@ -154,7 +154,8 @@ pub enum UserMessageSize {
 }
 
 /// An observation of a registered user message on the active map.
-/// Resolve it again after changing maps or before a future native send.
+/// This snapshot does not reserve the registration. The scoped sender resolves
+/// the registration again for each send.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RegisteredUserMessage {
     id: u8,

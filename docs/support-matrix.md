@@ -1,7 +1,7 @@
 # API and host support
 
-This is the proposed first stable-release scope, based on the repository's
-recorded evidence as of 2026-11-24. It is not a certification of the current
+This is the proposed first stable-release scope, based on the recorded
+evidence linked below. It is not a certification of the current
 working tree or an API stability promise for the development version.
 The [release roadmap](roadmap.md) lists the work required before release.
 
@@ -27,6 +27,11 @@ The [release roadmap](roadmap.md) lists the work required before release.
 freeze their current signatures. Experimental APIs may change as their host
 contracts are investigated. Keep the SDK game-agnostic; Ricochet setup and
 message schemas belong in adapters or game-specific examples.
+
+The [development priorities](roadmap.md#development-priorities) put generic
+engine services, typed hooks, and validation first. Further Ricochet adapter
+features and publication are deferred. Adapter validation is a release
+requirement only if that adapter is included in the supported scope.
 
 ## Build targets
 

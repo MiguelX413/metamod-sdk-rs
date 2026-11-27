@@ -69,9 +69,12 @@ the test GameDLL and after native setup with stock Ricochet published no
 stale sessions.
 [Investigation](fake-client-lifecycle.md) · [Map-change results](fake-client-lifecycle.md#live-map-change-with-a-pending-removal)
 
-Win32 and other GameDLLs remain unverified. Synthetic fixtures should cover
-creation failure, nested callbacks, disconnect, slot reuse, and map
-transitions. Movement, bot AI, and further game-specific setup remain future work.
+Win32 live behavior and other GameDLLs remain unverified. Rust mocks cover
+disconnect during setup, allocation returning after map retirement, nested
+frames during release confirmation, slot reuse, and map invalidation.
+These tests do not establish native host contracts. Further game-specific
+setup is deferred under the
+[development priorities](roadmap.md#development-priorities).
 
 ### Validated user messages
 

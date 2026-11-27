@@ -5,6 +5,27 @@ native validation, and make distribution reproducible. The feature backlog
 below can ship in later releases. The [API and host matrix](support-matrix.md)
 proposes the initial scope; release dates remain open.
 
+## Development priorities
+
+Focus on game-agnostic SDK features and their validation:
+
+1. Close validation gaps in existing generic APIs, including Win32 behavior
+   and the remaining memory-contract scenarios.
+2. Add small, useful engine capabilities with enforceable lifetime and phase
+   rules. Candidates include owned entity relationship snapshots and resource
+   precaching; select the next increment after reviewing the native contracts.
+3. Expand typed hooks as those capabilities need them. Keep ReHLDS extensions
+   optional and retain portable behavior where the native interface permits it.
+
+Further Ricochet-specific features are deferred. Maintain the existing
+experimental adapter and its tests, including safety fixes. Generic fake-client
+infrastructure must not depend on Ricochet private structures or setup rules.
+
+Ricochet remains useful as a live test environment for generic features.
+Those results establish behavior on the tested GameDLL, not other games.
+Additional adapters and game logic follow the generic SDK work; they are not
+prerequisites for its release.
+
 ## Current baseline
 
 | Area | Implemented or recorded | Remaining boundary |
@@ -94,7 +115,8 @@ and hashes, complete logs, payload evidence, and normal server exit status.
 - [ ] Finish Win32 client admission: deferral, rejection, bounded reason output,
   reconnect, and session identity. Exercise the promised Linux rows again for
   the release candidate.
-- [ ] Finish Win32 fake-client setup, full-slot/allocation failure, partial setup,
+- [ ] If an adapter is included in the release scope, finish its Win32
+  fake-client setup, full-slot/allocation failure, partial setup,
   queued removal confirmation, reuse, pending removal across a map change,
   and reentry. Cover every adapter/host pair included in the release scope.
 - [ ] Finish Win32 scoped message delivery with a real client and exact payload
@@ -125,7 +147,8 @@ requirement if registry publication is selected.
   grounded in pinned upstream headers; do not hand-copy ABI definitions.
 - [ ] For registry distribution, make the SDK, raw, and macro dependency graph
   publishable in dependency order with matching version requirements. Decide
-  separately whether the Ricochet adapter is part of that release.
+  separately whether any adapter is part of that release; Ricochet adapter
+  publication is deferred under the current priorities.
 - [ ] Build extracted package contents on Linux and Windows without borrowing
   files from the development checkout. Verify manual registration with default
   features disabled and attribute registration with defaults enabled.
@@ -170,6 +193,8 @@ security findings, upstream compatibility, and toolchain changes.
 These families extend the first stable release. Promote a family into the
 release scope only with its validation work; implementing a wrapper alone does
 not complete the family. They can also ship as later versioned releases.
+The table is an inventory, not execution order; the development priorities above
+put generic engine services and hooks ahead of game-specific adapters.
 
 | Family | Feature work | Required validation before support |
 | --- | --- | --- |
@@ -184,7 +209,7 @@ not complete the family. They can also ship as later versioned releases.
 | User info and save/restore | Bounded user-info operations and scoped serialization callbacks where supported. | Ownership, capacity, encoding, callback lifetime, map transitions, and save/load compatibility with the selected GameDLL. |
 | Metamod utilities | Game information and audited utility calls beyond logging and message lookup. | String lifetime, phase, dispatch and reentry contracts. Plugin-control functions must preserve the resident-plugin policy. |
 | Raw ABI coverage | Inventory transitively omitted or opaque public payloads by pinned header family and add needed ABI types. | Signature/layout comparison on Linux i686 and Windows x86, upstream provenance and licenses, and explicit exclusion of GameDLL implementation internals. |
-| Additional adapters and games | Separate supported GameDLL setup/protocol adapters from the generic SDK. | Dedicated game/host matrices and real client tests. Ricochet evidence cannot certify another game. Bot AI and game logic are separate projects or examples. |
+| Additional adapters and games (deferred) | Resume game-specific setup/protocol adapters after the generic SDK priorities. Keep them separate from the SDK. | Dedicated game/host matrices and real client tests. Ricochet evidence cannot certify another game. Bot AI and game logic are separate projects or examples. |
 
 **Broader completion:** every slot/type family in the pinned upstream inventory
 has a disposition: supported wrapper, raw unsafe access, deferred with a concrete

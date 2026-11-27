@@ -49,7 +49,7 @@
 //! | Register commands and read their arguments | [`Server::register_command`], [`Command`] |
 //! | Validate a runtime console name | [`OwnedConsoleName::normalize`] |
 //! | Read and update a CVar | [`Server::set_cvar`] |
-//! | Print or log through Metamod | [`MetaMod::print_console`], [`MetaMod::log`] |
+//! | Print or log through Metamod | [`MetaMod::print_console_trunc`], [`MetaMod::log_trunc`] |
 //! | Keep a player selection across callbacks | [`Context::player_at`], [`PlayerId`] |
 //! | Copy player information | [`Context::player_info`] |
 //! | Discover entities and copy their properties | [`Context::entities`], [`Context::entity_info`], [`Context::entity_spatial`] |

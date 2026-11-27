@@ -43,7 +43,7 @@ registered message sizes may be checked later in `MessageEnd`. [ReHLDS message i
   A post-hook on its own cannot prove that another plugin did not
   supercede the original end or open another message. The public HLSDK
   messaging table has no portable ownership query or abort operation.
-- Any future send path also needs to validate the registered identity and
+- Native sending also needs to validate the registered identity and
   size, the message-specific payload schema, the current recipient, and
   delivery phase. A valid byte length alone says nothing about what the
   receiving client will parse.
