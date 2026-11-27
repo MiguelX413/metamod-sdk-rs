@@ -206,6 +206,42 @@ pub struct EntityInfo {
     pub keyvalues: EntityKeyValues,
 }
 
+/// Owned observations of the common native entity relationship fields.
+///
+/// Each handle identifies the live slot occupant observed during lookup, not
+/// necessarily the entity originally assigned by the GameDLL: these native
+/// fields contain pointers without saved serials. Targets can change during
+/// the scan or expire afterwards. This is not an atomic graph snapshot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EntityRelationships {
+    /// Source allocation validated throughout the scan.
+    pub entity: EntityHandle,
+    /// Native owner, whose meaning is GameDLL-defined.
+    pub owner: Option<EntityHandle>,
+    /// Native enemy, whose meaning is GameDLL-defined.
+    pub enemy: Option<EntityHandle>,
+    /// Native follow/attachment target (`aiment`).
+    pub aiment: Option<EntityHandle>,
+    /// Native supporting entity; this alone does not establish grounded state.
+    pub ground_entity: Option<EntityHandle>,
+}
+
+/// # Safety
+/// Caller supplies a resolved, live source on the owning thread, whose common
+/// relationship pointer fields are initialized. This copies pointer values;
+/// it never reads through a relationship pointer.
+unsafe fn relationship_pointers(edict: *mut edict_t) -> [*mut edict_t; 4] {
+    // SAFETY: The resolved source has initialized common entvars fields.
+    unsafe {
+        [
+            ptr::addr_of!((*edict).v.owner).read(),
+            ptr::addr_of!((*edict).v.enemy).read(),
+            ptr::addr_of!((*edict).v.aiment).read(),
+            ptr::addr_of!((*edict).v.groundentity).read(),
+        ]
+    }
+}
+
 /// Owned spatial fields as reported by the engine at lookup time.
 /// The snapshot remains readable after its entity handle expires.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -389,6 +425,66 @@ impl Context<'_> {
                 netname,
                 message,
             },
+        })
+    }
+
+    /// Observe owner, enemy, follow target and supporting entity as owned handles.
+    ///
+    /// Returns `None` when the source, map or lookup becomes unavailable, or the
+    /// source relationship fields no longer match the copied values. An
+    /// individual `None` field means null, vacant or not found in the bounded
+    /// engine table.
+    /// World index zero and self-links are allowed. No relationship pointer is
+    /// dereferenced or passed to a native pointer-to-index callback.
+    ///
+    /// The scan makes at most one lookup per advertised edict slot, plus source
+    /// resolution. Revalidate returned handles before later native operations.
+    pub fn entity_relationships(&self, entity: EntityHandle) -> Option<EntityRelationships> {
+        let engine = __ffi::engine()?;
+        let source = entity.resolve(engine)?;
+        // SAFETY: Source resolution established initialized, live entvars.
+        let pointers = unsafe { relationship_pointers(source) };
+        let mut targets = [None; 4];
+        let mut pending = pointers.map(|pointer| !pointer.is_null());
+        let lookup = engine.entity?;
+        for index in 0..LIMIT.get() {
+            if !pending.iter().any(|pending| *pending) {
+                break;
+            }
+            // SAFETY: Index is bounded by the active map's validated capacity.
+            let candidate = unsafe { lookup(index) };
+            // Check retirement before reading either the source or lookup result.
+            // SAFETY: Source slot storage survives same-map callbacks; map epochs
+            // guard arena retirement. No relationship pointer is dereferenced.
+            if !unsafe { entity.still_matches(source) } {
+                return None;
+            }
+            for field in 0..4 {
+                if pending[field] && pointers[field] == candidate {
+                    pending[field] = false;
+                    // SAFETY: Only the engine lookup's current-map edict is read.
+                    // Equality with a foreign relationship pointer does not confer
+                    // validity; validity comes from the native lookup contract.
+                    targets[field] = unsafe { live_serial(candidate) }.map(|serial| EntityHandle {
+                        index,
+                        serial,
+                        map: entity.map,
+                    });
+                }
+            }
+        }
+        // SAFETY: The last lookup was followed by source revalidation, or no
+        // lookup occurred after resolution. These reads make no native calls.
+        if unsafe { relationship_pointers(source) } != pointers {
+            return None;
+        }
+        let [owner, enemy, aiment, ground_entity] = targets;
+        Some(EntityRelationships {
+            entity,
+            owner,
+            enemy,
+            aiment,
+            ground_entity,
         })
     }
 

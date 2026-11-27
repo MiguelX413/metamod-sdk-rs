@@ -353,6 +353,26 @@ before the next engine call and discards the snapshot if the map or entity
 generation changes during lookup. Owned snapshots remain readable after the
 handle expires.
 
+`ctx.entity_relationships(handle)` returns an owned `EntityRelationships`
+snapshot with optional `owner`, `enemy`, `aiment` (follow target), and
+`ground_entity` handles. World and self-links are allowed. Relationship
+meaning is GameDLL-defined; a ground-entity field alone does not establish
+that an entity is grounded. Try `rust_relationships 7` in the engine demo.
+
+The SDK compares relationship addresses with bounded engine-table lookups;
+it never dereferences a relationship pointer or submits it to an index
+callback. Null, vacant, and undiscoverable targets become absent fields.
+An unavailable or expired source, source fields that no longer match the
+copied values, map retirement, or shutdown makes the snapshot unavailable.
+A scan uses at most the advertised edict capacity plus one source lookup, without
+allocating a table. Results are sequential observations, not an atomic graph.
+
+Native relationship pointers carry no saved serial. If the GameDLL leaves a
+pointer to a reused slot, the snapshot can identify its current occupant,
+not recover the intended old entity. Returned handles capture the serial
+observed during lookup and reject later reuse. Revalidate them before later
+native operations. See [native relationship contracts](memory-safety-audit.md#entity-relationship-contracts).
+
 ## Build and install hello-world
 
 ### Linux i686

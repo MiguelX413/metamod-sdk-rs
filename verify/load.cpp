@@ -54,6 +54,9 @@ static int invalidated_cvar_reports;
 static void (*command)();
 static void (*trace_command)();
 static void (*entities_command)();
+static void (*relationships_command)();
+static int relationship_reports;
+static const char *expected_relationships;
 static bool trace_transition;
 static bool expect_inactive_trace;
 static bool shutdown_from_trace;
@@ -149,6 +152,9 @@ static void register_command(const char *name, void (*callback)()) {
     } else if (std::strcmp(name, "rust_trace") == 0) {
         assert(!trace_command);
         trace_command = callback;
+    } else if (std::strcmp(name, "rust_relationships") == 0) {
+        assert(!relationships_command);
+        relationships_command = callback;
     } else if (std::strcmp(name, "rust_entities") == 0) {
         assert(!entities_command);
         entities_command = callback;
@@ -269,6 +275,12 @@ static int index_of_edict(const edict_t *edict) {
 }
 
 static void server_print(const char *message) {
+    if (expected_relationships) {
+        assert(std::strcmp(message, expected_relationships) == 0);
+        expected_relationships = nullptr;
+        ++relationship_reports;
+        return;
+    }
     if (runtime_audit) {
         assert(std::strncmp(message, "MM_AUDIT ", 9) == 0);
         ++audit_logs;
@@ -777,6 +789,32 @@ int main(int argc, char **argv) {
         hooks.pfnServerActivate(nullptr, 0, 0);
         post_hooks.pfnServerActivate(nullptr, 0, 0);
         assert(trace_command);
+        assert(relationships_command);
+        args[0] = "rust_relationships";
+        args[1] = "0";
+        world.v.owner = &player;
+        // An unrelated address must only be compared, never dereferenced or
+        // sent to the pointer-to-index callback.
+        world.v.enemy = reinterpret_cast<edict_t *>(&logged);
+        world.v.aiment = &world;
+        world.v.groundentity = &vacant;
+        expected_relationships = "Relationships 0 owner=Some(7) enemy=None aiment=Some(0) ground=None\n";
+        relationships_command();
+        assert(!expected_relationships && relationship_reports == 1);
+        player.free = 1;
+        expected_relationships = "Relationships 0 owner=None enemy=None aiment=Some(0) ground=None\n";
+        relationships_command();
+        assert(!expected_relationships && relationship_reports == 2);
+        player.free = 0;
+        discovery_transition = true;
+        expected_relationships = "Entity relationships unavailable\n";
+        relationships_command();
+        assert(!expected_relationships && relationship_reports == 3);
+        discovery_transition = false;
+        hooks.pfnServerActivate(nullptr, 0, 0);
+        post_hooks.pfnServerActivate(nullptr, 0, 0);
+        world.v.owner = world.v.enemy = world.v.aiment = world.v.groundentity = nullptr;
+        args[1] = nullptr;
         args[0] = "rust_trace";
         // An inner activation cannot publish an arena while the outer
         // GameDLL activation can still replace it.

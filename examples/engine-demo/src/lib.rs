@@ -30,6 +30,7 @@ impl Plugin for EngineDemo {
             b"rust_entities" => show_entities(ctx, command),
             b"rust_trace" => show_trace(ctx),
             b"rust_state" => show_state(ctx),
+            b"rust_relationships" => show_relationships(ctx, command),
             b"rust_hello" => hello_message(ctx, command),
             _ => {}
         }
@@ -121,6 +122,11 @@ impl Plugin for EngineDemo {
                     "Could not register rust_state: {error}\n"
                 )));
             }
+            if let Err(error) = server.register_command(console_name!(c"rust_relationships")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_relationships: {error}\n"
+                )));
+            }
             server.print(c"Rust Engine Demo first frame\n");
         }
     }
@@ -143,6 +149,34 @@ impl Plugin for EngineDemo {
         } else {
             server.print(&c_string(format!("Hello, player in slot {slot}!\n")));
         }
+    }
+}
+
+fn show_relationships(ctx: &Context<'_>, command: &Command) {
+    let Some(index) = command
+        .arg(0)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+    else {
+        ctx.server()
+            .print(c"Usage: rust_relationships <edict index>\n");
+        return;
+    };
+    let snapshot = ctx
+        .entity_at(index)
+        .ok()
+        .flatten()
+        .and_then(|entity| ctx.entity_relationships(entity));
+    match snapshot {
+        Some(snapshot) => ctx.server().print(&c_string(format!(
+            "Relationships {} owner={:?} enemy={:?} aiment={:?} ground={:?}\n",
+            snapshot.entity.index(),
+            snapshot.owner.map(EntityHandle::index),
+            snapshot.enemy.map(EntityHandle::index),
+            snapshot.aiment.map(EntityHandle::index),
+            snapshot.ground_entity.map(EntityHandle::index),
+        ))),
+        None => ctx.server().print(c"Entity relationships unavailable\n"),
     }
 }
 

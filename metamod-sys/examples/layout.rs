@@ -217,6 +217,13 @@ fn main() {
     println!("spatial_velocity {}", offset_of!(raw::entvars_t, velocity));
     println!("spatial_absmin {}", offset_of!(raw::entvars_t, absmin));
     println!("spatial_absmax {}", offset_of!(raw::entvars_t, absmax));
+    println!("relationship_owner {}", offset_of!(raw::entvars_t, owner));
+    println!("relationship_enemy {}", offset_of!(raw::entvars_t, enemy));
+    println!("relationship_aiment {}", offset_of!(raw::entvars_t, aiment));
+    println!(
+        "relationship_groundentity {}",
+        offset_of!(raw::entvars_t, groundentity)
+    );
     println!("key_flags {}", offset_of!(raw::entvars_t, flags));
     println!("key_classname {}", offset_of!(raw::entvars_t, classname));
     println!("key_globalname {}", offset_of!(raw::entvars_t, globalname));

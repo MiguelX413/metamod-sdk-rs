@@ -53,6 +53,7 @@
 //! | Keep a player selection across callbacks | [`Context::player_at`], [`PlayerId`] |
 //! | Copy player information | [`Context::player_info`] |
 //! | Discover entities and copy their properties | [`Context::entities`], [`Context::entity_info`], [`Context::entity_spatial`] |
+//! | Observe entity owners, enemies, and attachments | [`Context::entity_relationships`], [`EntityRelationships`] |
 //! | Read server timing and map/game state | [`Server::state`], [`ServerState`] |
 //! | Trace geometry | [`Server::trace_line`], [`Server::trace_hull`] |
 //! | Reject a connection | [`ClientAdmission`] |
@@ -164,8 +165,9 @@ pub use message::{
 };
 pub use server_state::ServerState;
 pub use trace::{
-    EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntitySpatial, Hull,
-    TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
+    EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntityRelationships,
+    EntitySpatial, Hull, TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult,
+    TraceSegment,
 };
 
 pub use runtime::{
@@ -183,13 +185,13 @@ pub mod prelude {
     pub use crate::{
         ClientAdmission, ClientConnection, ClientRejectReason, ClientRejectReasonTooLong, Command,
         ConsoleName, Context, CvarValue, EngineError, EntityError, EntityHandle, EntityInfo,
-        EntityKeyValues, EntityKind, EntitySpatial, HookResult, Hull, KeyValueEvent,
-        MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError, MessageRecipient,
-        MessageSendError, MessageSender, MetaMod, Metadata, MetamodMessage, MetamodMessageTooLong,
-        OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId, Plugin, PostHookResult,
-        RegisteredUserMessage, Server, ServerState, StaleMessageRecipient, TraceError,
-        TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment, UserMessagePayload,
-        UserMessageSize, console_name, cvar_value, export_plugin,
+        EntityKeyValues, EntityKind, EntityRelationships, EntitySpatial, HookResult, Hull,
+        KeyValueEvent, MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError,
+        MessageRecipient, MessageSendError, MessageSender, MetaMod, Metadata, MetamodMessage,
+        MetamodMessageTooLong, OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId,
+        Plugin, PostHookResult, RegisteredUserMessage, Server, ServerState, StaleMessageRecipient,
+        TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
+        UserMessagePayload, UserMessageSize, console_name, cvar_value, export_plugin,
     };
 }
 

@@ -93,6 +93,10 @@ int main() {
     std::printf("spatial_velocity %zu\n", offsetof(entvars_t, velocity));
     std::printf("spatial_absmin %zu\n", offsetof(entvars_t, absmin));
     std::printf("spatial_absmax %zu\n", offsetof(entvars_t, absmax));
+    std::printf("relationship_owner %zu\n", offsetof(entvars_t, owner));
+    std::printf("relationship_enemy %zu\n", offsetof(entvars_t, enemy));
+    std::printf("relationship_aiment %zu\n", offsetof(entvars_t, aiment));
+    std::printf("relationship_groundentity %zu\n", offsetof(entvars_t, groundentity));
     std::printf("key_flags %zu\n", offsetof(entvars_t, flags));
     std::printf("key_classname %zu\n", offsetof(entvars_t, classname));
     std::printf("key_globalname %zu\n", offsetof(entvars_t, globalname));

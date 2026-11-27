@@ -12,8 +12,9 @@ Focus on game-agnostic SDK features and their validation:
 1. Close validation gaps in existing generic APIs, including Win32 behavior
    and the remaining memory-contract scenarios.
 2. Add small, useful engine capabilities with enforceable lifetime and phase
-   rules. Candidates include owned entity relationship snapshots and resource
-   precaching; select the next increment after reviewing the native contracts.
+   rules. Owned entity relationship snapshots are implemented with synthetic
+   verification; live host validation remains open. Resource precaching is
+   another candidate after reviewing its native phase and lifetime contracts.
 3. Expand typed hooks as those capabilities need them. Keep ReHLDS extensions
    optional and retain portable behavior where the native interface permits it.
 

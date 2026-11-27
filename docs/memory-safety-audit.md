@@ -49,6 +49,37 @@ first NUL or read limit while copying. Rust cannot detect hidden native
 invalidation. Private globals pointers, trace scratch state, and borrowed
 engine references are outside the API.
 
+## Entity relationship contracts
+
+The pinned [entvars fields](../upstream/hlsdk/engine/progdefs.h) store
+`owner`, `enemy`, `aiment`, and `groundentity` as plain edict pointers.
+[ReHLDS edict release and reuse](https://github.com/rehlds/ReHLDS/blob/master/rehlds/engine/pr_edict.cpp)
+increments the released slot's serial and clears its entvars when allocated
+again; it does not repair pointers held in other entities. The ABI provides
+no original-target serial in these fields. Valve HLDS's private implementation
+is not established by the ReHLDS source review.
+
+Relationship snapshots copy the source pointer values, then compare them
+with pointers returned by bounded engine lookups. Only lookup results are
+dereferenced, under the existing current-map edict contract. Foreign or
+retired relationship addresses need not be readable. The host must initialize
+the source pointer fields and retain same-map slot storage, and must notify
+map retirement before freeing that arena. No check can establish arbitrary
+foreign allocation validity or detect a hidden host violation.
+
+The source is revalidated after every native call and its relationship
+fields are checked again before return. Known map/shutdown interruption
+discards results before accessing retired storage. Targets are observations
+of current occupants, not proof of historical relationship intent; saved
+handles carry the observed epoch and serial. The scan is not atomic.
+
+Rust/Miri fixtures cover unrelated addresses, null and vacant targets,
+self-links, source replacement, target reuse, changed relationships, map
+retirement and shutdown. The shared x86 loader checks world/self links,
+vacant/unrelated targets and map interruption through the demo command.
+These synthetic checks do not establish live host behavior or extend the
+historical compatibility certificate.
+
 ## Controlled Rust and native fixtures
 
 Initialize the pinned upstream submodules and install libclang as described
