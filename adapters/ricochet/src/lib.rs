@@ -19,6 +19,12 @@ impl Ricochet {
     /// in the fake-client lifecycle guide. In particular, it must retain valid
     /// callback storage, allow the documented setup sequence, and avoid
     /// reassigning user IDs that could still be targeted by a queued kick.
+    /// Native callbacks during allocation or setup must not disconnect an
+    /// incompletely initialized player through stock Ricochet's disconnect
+    /// path, which requires private player data. These callbacks occur before
+    /// the SDK can validate the result; detecting map retirement afterwards
+    /// cannot make the native disconnect safe. Engine detection alone does
+    /// not establish this GameDLL and deployment contract.
     /// The tested configurations are Linux i686 Valve HLDS build 8684 and
     /// ReHLDS 3.15.0.896-dev with classic Metamod 1.21.1-am and stock Ricochet.
     pub unsafe fn new() -> Self {

@@ -210,6 +210,55 @@ Transfer `target/i686-unknown-linux-gnu/release/examples/libricochet_lifecycle.s
 and pass it to the same isolated `run-linux.sh` command in `stock` mode.
 The example is a test plugin for the verified stock deployments.
 
+## Why construction still requires unsafe opt-in
+
+The adapter enforces name validation and the admission → put-in-server →
+fake-flag restoration sequence. The SDK checks the server thread, active
+map, callback availability, and session identity, rejects nested SDK
+creation, and withholds `PlayerId` when setup is interrupted.
+
+Those checks cannot enforce the following native contracts:
+
+- Allocation can invoke callbacks before returning to Rust. Stock Ricochet's
+  disconnect path dereferences private player data without a null check.
+  A disconnect before setup creates that data can fail inside native code;
+  detecting map retirement afterwards cannot prevent it.
+- A queued kick requires the host to copy command text and preserve its
+  user-ID target until execution. Checking identity before queuing cannot
+  constrain later native ID allocation.
+- Callback code and native storage must remain valid throughout each call.
+  Forced unloading remains unsupported.
+
+Automatic rollback could enter the same unprepared disconnect path.
+Allocating GameDLL private data in the adapter would be too late to protect
+callbacks during engine allocation and would depend on GameDLL internals.
+The early-allocation test below therefore used a tolerant test GameDLL,
+not stock Ricochet.
+
+`Ricochet::new()` remains unsafe: these obligations apply to every use of
+its adapter. Making it safe would require a host facility that enforces
+safe allocation, setup and teardown, together with a verified GameDLL
+contract. Engine or GameDLL names cannot establish those guarantees.
+
+## Engine detection and capability selection
+
+ReHLDS exposes a versioned C++ extension API. [ReAPI's initialization](https://github.com/rehlds/ReAPI/blob/master/reapi/src/mods/mod_rehlds_api.cpp)
+locates the loaded engine module, requests the interface through its factory,
+and checks API major/minor versions. This SDK does not wrap that API;
+a wrapper would need audited platform-specific module lookup and C++ ABI
+integration.
+
+Plugins could use a supported interface to enable an extension and retain
+the portable path otherwise. Failed detection means unknown or unavailable,
+not confirmed Valve HLDS: module lookup or version negotiation can fail,
+and other forks exist. Banners and CVars are diagnostic hints, not proof
+that an extension is callable.
+
+Detecting ReHLDS would not establish the GameDLL's private-data requirements
+or other plugins' callback behavior, so it must not automatically authorize
+`Ricochet::new()`. Runtime capability checks also do not replace the binary
+hashes and provenance required by certification.
+
 ## Live map change with a pending removal
 
 The [map-change example](../adapters/ricochet/examples/ricochet_map_change.rs)
