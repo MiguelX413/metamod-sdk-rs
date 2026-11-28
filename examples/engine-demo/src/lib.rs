@@ -49,6 +49,7 @@ impl Plugin for EngineDemo {
             b"rust_entities" => show_entities(ctx, command),
             b"rust_trace" => show_trace(ctx),
             b"rust_state" => show_state(ctx),
+            b"rust_appearance" => show_appearance(ctx, command),
             b"rust_relationships" => show_relationships(ctx, command),
             b"rust_hello" => hello_message(ctx, command),
             _ => {}
@@ -146,6 +147,11 @@ impl Plugin for EngineDemo {
                     "Could not register rust_relationships: {error}\n"
                 )));
             }
+            if let Err(error) = server.register_command(console_name!(c"rust_appearance")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_appearance: {error}\n"
+                )));
+            }
             if let Err(error) = server.register_command(console_name!(c"rust_resources")) {
                 server.print(&c_string(format!(
                     "Could not register rust_resources: {error}\n"
@@ -173,6 +179,29 @@ impl Plugin for EngineDemo {
         } else {
             server.print(&c_string(format!("Hello, player in slot {slot}!\n")));
         }
+    }
+}
+
+fn show_appearance(ctx: &Context<'_>, command: &Command) {
+    let Some(index) = command
+        .arg(0)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+    else {
+        ctx.server()
+            .print(c"Usage: rust_appearance <edict index>\n");
+        return;
+    };
+    match ctx
+        .entity_at(index)
+        .ok()
+        .flatten()
+        .and_then(|entity| ctx.entity_appearance(entity))
+    {
+        Some(snapshot) => ctx
+            .server()
+            .print(&c_string(format!("Appearance: {snapshot:?}\n"))),
+        None => ctx.server().print(c"Entity appearance unavailable\n"),
     }
 }
 

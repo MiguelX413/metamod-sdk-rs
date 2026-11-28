@@ -13,7 +13,7 @@ The [release roadmap](roadmap.md) lists the work required before release.
 | Console, commands, and CVars | Core | Validated names and values, owned command tokens and CVar reads, bounded permanent registrations. Register once from an attached callback, not `initialize`. |
 | Server timing and game state | Core API; candidate validation pending | Active-map owned snapshots, optional fields for invalid native values, and numeric GameDLL-defined modes. Linux development results are recorded below; Win32 validation remains pending. |
 | Player identity and information | Core | Distinct slot, native user ID, and tracked session types; owned information snapshots. Tracking covers observed joins. Revalidate saved sessions. |
-| Entity discovery and snapshots | Core API; candidate validation pending | Map epochs and native serials, bounded index lookup, owned common fields, strings and relationships. Relationship targets describe current observed occupants, not historical pointer intent. Relationship snapshots have synthetic coverage and recorded Linux results on three host combinations; Win32 and other combinations remain unverified. No general entity mutation or GameDLL-private data access. |
+| Entity discovery and snapshots | Core API; candidate validation pending | Map epochs and native serials, bounded index lookup, owned common fields, strings, appearance and relationships. Appearance snapshots have synthetic tests; live validation remains pending. Relationship targets describe current observed occupants, not historical pointer intent. Relationship snapshots have synthetic coverage and recorded Linux results on three host combinations; Win32 and other combinations remain unverified. No general entity mutation or GameDLL-private data access. |
 | Line and standard hull traces | Core | Finite endpoints, validated skip identity, owned results. A missing hit handle does not imply no collision. |
 | Model and sound precaching | Experimental; Linux observations recorded | Loading-only callback, static validated names, distinct map-scoped indices. Linux runs cover registration, map changes and stale indices on Valve HLDS with classic Metamod, and ReHLDS with classic Metamod or Metamod-R. Win32 remains unverified. Native fatal load/capacity errors cannot be converted to Rust errors. [Contracts and results](resource-precaching.md). |
 | Admission, keyvalue, and lag-compensation hooks | Core API; host validation required | Explicit hook opt-ins, owned observations, typed synchronous decisions, and validated `ClientRejectReason` values. Native fixture coverage does not establish live behavior on every host. |
@@ -73,14 +73,14 @@ unless stated otherwise.
 
 ### Engine services
 
-| Engine and manager | Server-state snapshots | Entity relationships | Model/sound precaching | TextMsg / ScreenFade delivery |
-| --- | --- | --- | --- | --- |
-| Valve HLDS 8684 + classic Metamod 1.21.1-am | Development observations [S] | Recorded [R] | Recorded, experimental [P] | Recorded, experimental sender [M] |
-| ReHLDS 3.15.0.896-dev + classic Metamod 1.21.1-am | Development observations [S] | Recorded [R] | Recorded, experimental [P] | Recorded, experimental sender [M] |
-| ReHLDS 3.15.0.896-dev + Metamod-R 1.3.0.149 | Development observations [S] | Recorded [R] | Recorded, experimental [P] | Recorded, experimental sender [M] |
-| Valve HLDS + Metamod-R | Unverified | Unverified | Unverified | Unverified |
-| Windows x86 host combinations | Unverified | Unverified | Unverified | Unverified |
-| Other GameDLLs or host versions | Unverified | Unverified | Unverified | Unverified |
+| Engine and manager | Server-state snapshots | Entity relationships | Model/sound precaching | TextMsg / ScreenFade delivery | Entity appearance |
+| --- | --- | --- | --- | --- | --- |
+| Valve HLDS 8684 + classic Metamod 1.21.1-am | Development observations [S] | Recorded [R] | Recorded, experimental [P] | Recorded, experimental sender [M] | Unverified |
+| ReHLDS 3.15.0.896-dev + classic Metamod 1.21.1-am | Development observations [S] | Recorded [R] | Recorded, experimental [P] | Recorded, experimental sender [M] | Unverified |
+| ReHLDS 3.15.0.896-dev + Metamod-R 1.3.0.149 | Development observations [S] | Recorded [R] | Recorded, experimental [P] | Recorded, experimental sender [M] | Unverified |
+| Valve HLDS + Metamod-R | Unverified | Unverified | Unverified | Unverified | Unverified |
+| Windows x86 host combinations | Unverified | Unverified | Unverified | Unverified | Unverified |
+| Other GameDLLs or host versions | Unverified | Unverified | Unverified | Unverified | Unverified |
 
 ### Evidence and qualifications
 

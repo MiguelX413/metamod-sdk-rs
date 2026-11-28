@@ -72,6 +72,8 @@ static int precache_sound(const char *name) {
     ++precache_calls;
     return 12;
 }
+static void (*appearance_command)();
+static int appearance_reports, appearance_unavailable;
 static void (*relationships_command)();
 static int relationship_reports;
 static const char *expected_relationships;
@@ -173,6 +175,9 @@ static void register_command(const char *name, void (*callback)()) {
     } else if (std::strcmp(name, "rust_trace") == 0) {
         assert(!trace_command);
         trace_command = callback;
+    } else if (std::strcmp(name, "rust_appearance") == 0) {
+        assert(!appearance_command);
+        appearance_command = callback;
     } else if (std::strcmp(name, "rust_relationships") == 0) {
         assert(!relationships_command);
         relationships_command = callback;
@@ -225,10 +230,11 @@ static bool string_transition;
 
 static const char *string_from_index(int index) {
     static char value[32];
-    assert(index == 1 || index == 2 || index == -3 || index == 10 || index == 11);
+    assert(index == 1 || index == 2 || index == -3 || index == 4 || index == 10 || index == 11);
     if (string_transition) {
         hooks.pfnServerDeactivate();
     }
+    if (index == 4) return "models/fixture.mdl";
     if (index == 10) return "fixture_map";
     if (index == 11) return "fixture_start";
     std::strcpy(value, index == 1 ? "worldspawn" : index == 2 ? "player" : "demo_target");
@@ -302,6 +308,21 @@ static void server_print(const char *message) {
             ? "Resources model=Some(11) sound=Some(12) current=true/true\n"
             : "Resources model=Some(11) sound=Some(12) current=false/false\n") == 0);
         ++resource_reports;
+        return;
+    }
+    if (std::strncmp(message, "Appearance: ", 12) == 0) {
+        assert(engine_demo);
+        const char *fields[] = {"models/fixture.mdl", "model_index: -23", "skin: -1",
+            "body: 3", "effects: 32", "sequence: 9", "gait_sequence: 4", "frame: 12.5",
+            "animation_time: -2.0", "frame_rate: -2.0", "controllers: [0, 1, 254, 255]",
+            "blending: [17, 255]", "scale: 0.5", "render_mode: 7", "render_amount: 128.25",
+            "render_color: [1.0, 2.0, 3.0]", "render_fx: 99", "colormap: 4660"};
+        for (const char *field : fields) assert(std::strstr(message, field));
+        ++appearance_reports;
+        return;
+    }
+    if (std::strcmp(message, "Entity appearance unavailable\n") == 0) {
+        ++appearance_unavailable;
         return;
     }
     if (expected_relationships) {
@@ -842,6 +863,27 @@ int main(int argc, char **argv) {
         hooks.pfnServerActivate(nullptr, 0, 0);
         post_hooks.pfnServerActivate(nullptr, 0, 0);
         assert(trace_command);
+        assert(appearance_command);
+        player.v.model = 4;
+        player.v.modelindex = -23;
+        player.v.skin = -1; player.v.body = 3; player.v.effects = 32;
+        player.v.sequence = 9; player.v.gaitsequence = 4; player.v.frame = 12.5f;
+        player.v.animtime = -2; player.v.framerate = -2;
+        player.v.controller[0] = 0; player.v.controller[1] = 1;
+        player.v.controller[2] = 254; player.v.controller[3] = 255;
+        player.v.blending[0] = 17; player.v.blending[1] = 255;
+        player.v.scale = 0.5f; player.v.rendermode = 7; player.v.renderamt = 128.25f;
+        player.v.rendercolor[0] = 1; player.v.rendercolor[1] = 2; player.v.rendercolor[2] = 3;
+        player.v.renderfx = 99; player.v.colormap = 0x1234;
+        args[0] = "rust_appearance"; args[1] = "7";
+        appearance_command();
+        assert(appearance_reports == 1);
+        string_transition = true;
+        appearance_command();
+        assert(appearance_unavailable == 1);
+        string_transition = false;
+        hooks.pfnServerActivate(nullptr, 0, 0);
+        post_hooks.pfnServerActivate(nullptr, 0, 0);
         assert(relationships_command);
         args[0] = "rust_relationships";
         args[1] = "0";

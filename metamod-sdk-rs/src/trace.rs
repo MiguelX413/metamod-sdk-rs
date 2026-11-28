@@ -206,6 +206,56 @@ pub struct EntityInfo {
     pub keyvalues: EntityKeyValues,
 }
 
+/// Owned appearance fields copied from an entity's common entvars.
+///
+/// Numeric values are preserved, including unknown modes, negative indices,
+/// NaN and infinity. This is a server observation, not a client-rendering
+/// guarantee or an atomic snapshot of native changes during string lookup.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EntityAppearance {
+    /// Source identity validated while obtaining the snapshot.
+    pub entity: EntityHandle,
+    /// Owned model name or inline model reference. Zero string indices, missing
+    /// getters, null pointers and unterminated/oversized strings become `None`.
+    pub model_name: Option<CString>,
+    /// Observed native model index, not a validated precached `ModelIndex`.
+    /// Zero/negative values and GameDLL-defined values are preserved.
+    pub model_index: i32,
+    /// Native skin selection; meaning depends on the model/GameDLL.
+    pub skin: i32,
+    /// Native studio-model body/submodel selection.
+    pub body: i32,
+    /// Native effects bits, without imposing a closed set of flags.
+    pub effects: i32,
+    /// Native animation sequence number.
+    pub sequence: i32,
+    /// Native gait/movement sequence number, when used by the GameDLL.
+    pub gait_sequence: i32,
+    /// Native animation frame, conventionally in the 0..255 range.
+    pub frame: f32,
+    /// Native simulation time in seconds when the animation frame was set.
+    /// This is not wall-clock time or a monotonic process timer.
+    pub animation_time: f32,
+    /// Native animation playback multiplier, without clamping.
+    pub frame_rate: f32,
+    /// Four native bone-controller bytes; interpretation is model-specific.
+    pub controllers: [u8; 4],
+    /// Two native entvars blending bytes. Network entity-state layouts differ.
+    pub blending: [u8; 2],
+    /// Native rendering scale, without imposing a range or model type.
+    pub scale: f32,
+    /// Native render mode, preserved as an integer rather than a closed enum.
+    pub render_mode: i32,
+    /// Native render amount, conventionally an alpha/intensity in 0..255.
+    pub render_amount: f32,
+    /// Native rendering RGB components, conventionally in 0..255.
+    pub render_color: [f32; 3],
+    /// Native rendering effect identifier.
+    pub render_fx: i32,
+    /// Native packed colormap value, with GameDLL/model-specific meaning.
+    pub colormap: i32,
+}
+
 /// Owned observations of the common native entity relationship fields.
 ///
 /// Each handle identifies the live slot occupant observed during lookup, not
@@ -351,7 +401,7 @@ impl Context<'_> {
     /// ```
     pub fn entity_info(&self, entity: EntityHandle) -> Option<EntityInfo> {
         let engine = __ffi::engine()?;
-        let lookup = engine.string_from_index?;
+        engine.string_from_index?;
         let edict = entity.resolve(engine)?;
 
         // SAFETY: The edict has just been validated. Copy flags and offsets
@@ -384,25 +434,10 @@ impl Context<'_> {
         };
         let mut strings = [const { None }; 7];
         for (index, value) in indices.into_iter().zip(&mut strings) {
-            if index == 0 {
-                continue;
-            }
-            if active_map() != Some(entity.map) {
-                return None;
-            }
-            let reading = StringRead::begin()?;
-            // SAFETY: The bit pattern comes from the engine's own string_t.
-            // GoldSrc uses signed offsets at this callback boundary.
-            let string = unsafe { lookup(index as i32) };
-            // SAFETY: The edict slot remains readable while its map is active.
-            if !reading.uninterrupted() || !unsafe { entity.still_matches(edict) } {
-                return None;
-            }
-            // SAFETY: The current-map engine string can be read until the
-            // next native call. Copy it before revalidating the edict.
-            *value = unsafe { copy_string(string, MAX_ENGINE_STRING) };
-            drop(reading);
-            entity.resolve(engine)?;
+            // SAFETY: Offsets came from the resolved edict. The host retains
+            // same-map slots and readable getter results; the helper checks
+            // observed retirement before reading either pointer.
+            *value = unsafe { copy_entity_string(engine, entity, edict, index as i32) }?;
         }
         let [
             classname,
@@ -426,6 +461,61 @@ impl Context<'_> {
                 message,
             },
         })
+    }
+
+    /// Copy model, animation and rendering fields from a validated entity.
+    /// Returns `None` if the source is unavailable, expires, or a model-name
+    /// lookup is observably interrupted. A missing model name alone leaves
+    /// the scalar snapshot available. Strings are copied with a 4,096-byte
+    /// read budget including NUL, before another native call.
+    ///
+    /// The host must initialize these common fields and keep the current-map
+    /// edict slot and returned string readable under the normal entity/string
+    /// contracts. No borrowed engine memory or model object is returned.
+    ///
+    /// ```
+    /// use metamod_sdk_rs::{Context, EntityAppearance, EntityHandle};
+    /// fn inspect(ctx: &Context<'_>, entity: EntityHandle) -> Option<EntityAppearance> {
+    ///     ctx.entity_appearance(entity)
+    /// }
+    /// ```
+    pub fn entity_appearance(&self, entity: EntityHandle) -> Option<EntityAppearance> {
+        let engine = __ffi::engine()?;
+        let edict = entity.resolve(engine)?;
+        // SAFETY: Resolution checked the map, serial and free flag on the
+        // owner thread. The host provides initialized, readable entvars in
+        // this live slot. No references or native calls occur during copying.
+        let (mut appearance, model) = unsafe {
+            let vars = ptr::addr_of!((*edict).v);
+            (
+                EntityAppearance {
+                    entity,
+                    model_name: None,
+                    model_index: ptr::addr_of!((*vars).modelindex).read(),
+                    skin: ptr::addr_of!((*vars).skin).read(),
+                    body: ptr::addr_of!((*vars).body).read(),
+                    effects: ptr::addr_of!((*vars).effects).read(),
+                    sequence: ptr::addr_of!((*vars).sequence).read(),
+                    gait_sequence: ptr::addr_of!((*vars).gaitsequence).read(),
+                    frame: ptr::addr_of!((*vars).frame).read(),
+                    animation_time: ptr::addr_of!((*vars).animtime).read(),
+                    frame_rate: ptr::addr_of!((*vars).framerate).read(),
+                    controllers: ptr::addr_of!((*vars).controller).read(),
+                    blending: ptr::addr_of!((*vars).blending).read(),
+                    scale: ptr::addr_of!((*vars).scale).read(),
+                    render_mode: ptr::addr_of!((*vars).rendermode).read(),
+                    render_amount: ptr::addr_of!((*vars).renderamt).read(),
+                    render_color: vector(ptr::addr_of!((*vars).rendercolor).read()),
+                    render_fx: ptr::addr_of!((*vars).renderfx).read(),
+                    colormap: ptr::addr_of!((*vars).colormap).read(),
+                },
+                ptr::addr_of!((*vars).model).read(),
+            )
+        };
+        // SAFETY: The offset came from the resolved edict. The host retains
+        // same-map slots and readable getter results through the copy interval.
+        appearance.model_name = unsafe { copy_entity_string(engine, entity, edict, model as i32) }?;
+        Some(appearance)
     }
 
     /// Observe owner, enemy, follow target and supporting entity as owned handles.
@@ -507,6 +597,42 @@ impl Context<'_> {
             })
         }
     }
+}
+
+/// # Safety
+/// `edict` must have been resolved for `entity` on this thread. The host must
+/// retain same-map slot storage and make nonzero string indices valid for its
+/// getter, with returned bytes readable through NUL or the bounded read limit.
+unsafe fn copy_entity_string(
+    engine: Engine,
+    entity: EntityHandle,
+    edict: *mut edict_t,
+    index: i32,
+) -> Option<Option<CString>> {
+    if index == 0 {
+        return Some(None);
+    }
+    let Some(lookup) = engine.string_from_index else {
+        return Some(None);
+    };
+    if active_map() != Some(entity.map) {
+        return None;
+    }
+    let reading = StringRead::begin()?;
+    // SAFETY: The value preserves the engine string_t bit pattern, including
+    // signed offsets used by legacy hosts at this callback boundary.
+    let string = unsafe { lookup(index) };
+    // Check observable invalidation before touching returned string storage.
+    // SAFETY: Map checking precedes identity reads; same-map slots stay allocated.
+    if !reading.uninterrupted() || !unsafe { entity.still_matches(edict) } {
+        return None;
+    }
+    // SAFETY: The host retains this result through its NUL/read limit until
+    // the next native call. Bounded reads cannot establish arbitrary validity.
+    let owned = unsafe { copy_string(string, MAX_ENGINE_STRING) };
+    drop(reading);
+    entity.resolve(engine)?;
+    Some(owned)
 }
 
 type EdictLookup = unsafe extern "C" fn(i32) -> *mut edict_t;

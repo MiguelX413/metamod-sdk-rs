@@ -129,6 +129,7 @@ def markdown(report):
 
 
 MIRI_SCENARIOS = (
+    "__ffi::tests::entity_appearance_owns_fields_and_rejects_interrupted_native_strings",
     "__ffi::tests::precaching_is_scoped_retains_static_names_and_invalidates_map_indices",
     "__ffi::tests::precache_panics_are_contained_and_scope_is_closed",
     "__ffi::tests::entity_relationships_observe_slots_without_reading_foreign_targets",

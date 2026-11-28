@@ -53,6 +53,7 @@
 //! | Keep a player selection across callbacks | [`Context::player_at`], [`PlayerId`] |
 //! | Copy player information | [`Context::player_info`] |
 //! | Discover entities and copy their properties | [`Context::entities`], [`Context::entity_info`], [`Context::entity_spatial`] |
+//! | Copy model, animation, and rendering fields | [`Context::entity_appearance`], [`EntityAppearance`] |
 //! | Observe entity owners, enemies, and attachments | [`Context::entity_relationships`], [`EntityRelationships`] |
 //! | Read server timing and map/game state | [`Server::state`], [`ServerState`] |
 //! | Register models and sounds during map loading | [`Plugin::precache`], [`Precache`] |
@@ -170,9 +171,9 @@ pub use resources::{
 };
 pub use server_state::ServerState;
 pub use trace::{
-    EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind, EntityRelationships,
-    EntitySpatial, Hull, TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult,
-    TraceSegment,
+    EntityAppearance, EntityError, EntityHandle, EntityInfo, EntityKeyValues, EntityKind,
+    EntityRelationships, EntitySpatial, Hull, TraceError, TraceMonsters, TraceOptions, TracePlane,
+    TraceResult, TraceSegment,
 };
 
 pub use runtime::{
@@ -189,9 +190,9 @@ pub mod prelude {
     pub use crate::metamod_plugin;
     pub use crate::{
         ClientAdmission, ClientConnection, ClientRejectReason, ClientRejectReasonTooLong, Command,
-        ConsoleName, Context, CvarValue, EngineError, EntityError, EntityHandle, EntityInfo,
-        EntityKeyValues, EntityKind, EntityRelationships, EntitySpatial, HookResult, Hull,
-        KeyValueEvent, MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError,
+        ConsoleName, Context, CvarValue, EngineError, EntityAppearance, EntityError, EntityHandle,
+        EntityInfo, EntityKeyValues, EntityKind, EntityRelationships, EntitySpatial, HookResult,
+        Hull, KeyValueEvent, MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError,
         MessageRecipient, MessageSendError, MessageSender, MetaMod, Metadata, MetamodMessage,
         MetamodMessageTooLong, OwnedConsoleName, PlayerId, PlayerInfo, PlayerSlot, PlayerUserId,
         Plugin, PostHookResult, RegisteredUserMessage, Server, ServerState, StaleMessageRecipient,

@@ -361,6 +361,25 @@ before the next engine call and discards the snapshot if the map or entity
 generation changes during lookup. Owned snapshots remain readable after the
 handle expires.
 
+`ctx.entity_appearance(handle)` returns an owned `EntityAppearance`: model name
+and observed model index, skin/body/effects, animation sequences and timing,
+controller/blending bytes, scale, rendering fields and colormap. Try
+`rust_appearance 7` in the engine demo (replace `7` with a current edict index).
+The model name is copied as native bytes into a `CString`; zero offsets,
+unavailable getters, null results and strings without NUL within 4,096 bytes
+produce `None` for that field. Invalidated identities or interrupted native
+lookups discard the whole snapshot.
+
+Numeric fields preserve native values, including unknown render modes and
+non-finite floats. Animation time is native simulation time in seconds, not
+wall-clock time. The observed `model_index: i32` is not a validated precache
+`ModelIndex`. These fields describe server state, not guaranteed client
+rendering. The snapshot owns its data but is not atomic across native calls,
+and retaining it does not keep the entity alive. Common entvars contain two
+blending bytes; network entity-state layouts are different. No model objects,
+bones or GameDLL-private state are borrowed. Appearance snapshots have synthetic
+Rust/native coverage; live Linux and Win32 validation remain pending.
+
 `ctx.entity_relationships(handle)` returns an owned `EntityRelationships`
 snapshot with optional `owner`, `enemy`, `aiment` (follow target), and
 `ground_entity` handles. World and self-links are allowed. Relationship
@@ -460,7 +479,8 @@ engine-demo shows explicit attribute arguments.
 For a live smoke test, use a disposable server on each platform and record
 the engine and Metamod versions. Start with the demo configured at startup,
 confirm `meta list` reports it running, then run `rust_hello`,
-`rust_hello "test value"`, `rust_entities 0`, `rust_state`, and `rust_trace` from the
+`rust_hello "test value"`, `rust_entities 0`, `rust_appearance 0`,
+`rust_relationships 0`, `rust_resources`, `rust_state`, and `rust_trace` from the
 server console. Connect, disconnect, and reconnect a client. Check that the
 demo reports the new join and that the server continues serving frames.
 Use `changelevel` to load another installed map and repeat the commands.

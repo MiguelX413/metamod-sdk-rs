@@ -238,6 +238,59 @@ fn main() {
     println!("key_globalname {}", offset_of!(raw::entvars_t, globalname));
     println!("key_target {}", offset_of!(raw::entvars_t, target));
     println!("key_targetname {}", offset_of!(raw::entvars_t, targetname));
+    println!(
+        "appearance_modelindex {}",
+        offset_of!(raw::entvars_t, modelindex)
+    );
+    println!("appearance_skin {}", offset_of!(raw::entvars_t, skin));
+    println!("appearance_body {}", offset_of!(raw::entvars_t, body));
+    println!("appearance_effects {}", offset_of!(raw::entvars_t, effects));
+    println!(
+        "appearance_sequence {}",
+        offset_of!(raw::entvars_t, sequence)
+    );
+    println!(
+        "appearance_gaitsequence {}",
+        offset_of!(raw::entvars_t, gaitsequence)
+    );
+    println!("appearance_frame {}", offset_of!(raw::entvars_t, frame));
+    println!(
+        "appearance_animtime {}",
+        offset_of!(raw::entvars_t, animtime)
+    );
+    println!(
+        "appearance_framerate {}",
+        offset_of!(raw::entvars_t, framerate)
+    );
+    println!(
+        "appearance_controller {}",
+        offset_of!(raw::entvars_t, controller)
+    );
+    println!(
+        "appearance_blending {}",
+        offset_of!(raw::entvars_t, blending)
+    );
+    println!("appearance_scale {}", offset_of!(raw::entvars_t, scale));
+    println!(
+        "appearance_rendermode {}",
+        offset_of!(raw::entvars_t, rendermode)
+    );
+    println!(
+        "appearance_renderamt {}",
+        offset_of!(raw::entvars_t, renderamt)
+    );
+    println!(
+        "appearance_rendercolor {}",
+        offset_of!(raw::entvars_t, rendercolor)
+    );
+    println!(
+        "appearance_renderfx {}",
+        offset_of!(raw::entvars_t, renderfx)
+    );
+    println!(
+        "appearance_colormap {}",
+        offset_of!(raw::entvars_t, colormap)
+    );
     println!("key_model {}", offset_of!(raw::entvars_t, model));
     println!("key_netname {}", offset_of!(raw::entvars_t, netname));
     println!("key_message {}", offset_of!(raw::entvars_t, message));

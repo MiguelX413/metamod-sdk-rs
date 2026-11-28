@@ -82,6 +82,32 @@ These synthetic checks do not establish live host behavior. Separate
 and map changes on three identified host combinations, without instrumentation. Neither
 set of results extends the historical compatibility certificate.
 
+## Entity appearance contracts
+
+`Context::entity_appearance` copies initialized common `entvars_t` scalars and
+fixed arrays before calling the model-name getter. The pinned
+[HLSDK definition](../upstream/hlsdk/engine/progdefs.h) contains a model string
+offset and a separate integer model index, four controller bytes and two blending
+bytes. The SDK returns owned data and preserves unknown numeric values.
+
+The shared entity-string reader checks map/serial/free state and observable
+reentry before reading a returned string, copies it before another native call,
+and resolves the identity again afterward. Tests cover reused buffers, null and
+bounded unterminated strings, serial changes, shutdown, and a map transition
+that retires the source allocation before the getter returns. Missing model
+strings leave scalar data available; interrupted identities discard the snapshot.
+
+The host must still keep same-map edict slots allocated, initialize common
+fields, and provide readable string storage through NUL or the read limit.
+Bounds checks cannot prove pointer validity. Hidden invalidation without an
+SDK-visible lifecycle boundary remains a host-contract violation. These are
+observations rather than atomic snapshots or client-rendering guarantees.
+ReHLDS's [edict lifecycle](https://github.com/rehlds/ReHLDS/blob/master/rehlds/engine/pr_edict.cpp)
+and [model setter](https://github.com/rehlds/ReHLDS/blob/master/rehlds/engine/pr_cmds.cpp)
+illustrate slot serial changes and the separate model-name/index fields; those
+implementations do not establish contracts for every host. No live appearance
+results are claimed.
+
 ## Controlled Rust and native fixtures
 
 Model and sound [precaching](resource-precaching.md) requires static validated

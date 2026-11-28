@@ -16,6 +16,8 @@ Focus on game-agnostic SDK features and their validation:
    [Linux live results](entity-relationships.md); Win32 remains unverified.
    Loading-only model/sound precaching has [Linux results](resource-precaching.md#live-linux-results)
    with classic Metamod and ReHLDS/Metamod-R; Win32 validation remains open.
+   Owned appearance snapshots now cover common model, animation and rendering
+   fields with synthetic tests; live Linux and Win32 validation remain open.
    Resource lookup, generic downloads and event precaching remain raw.
 3. Expand typed hooks as those capabilities need them. Keep ReHLDS extensions
    optional and retain portable behavior where the native interface permits it.
