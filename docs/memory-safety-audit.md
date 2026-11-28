@@ -91,7 +91,10 @@ not deferred; lifecycle interruption prevents publishing a returned index and
 blocks subsequent calls through that scope. The host must implement the reviewed
 worldspawn/loading contract and must not unwind or jump across Rust frames on
 native failure. Asset validity and native resource capacity remain host concerns;
-these calls cannot promise recovery from fatal engine errors.
+these calls cannot promise recovery from fatal engine errors. Separate
+[Linux live observations](resource-precaching.md#live-linux-results) cover
+registration and stale indices across map changes with classic Metamod and
+ReHLDS/Metamod-R. These uninstrumented runs do not establish memory safety.
 
 Initialize the pinned upstream submodules and install libclang as described
 in the [SDK reference](sdk-reference.md#linux-i686). On a development machine with nightly Miri:

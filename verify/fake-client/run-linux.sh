@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run against saved audit snapshots on a disposable test host.
 set -euo pipefail
+script_dir=$(cd "$(dirname "$0")" && pwd)
 [[ $# -ge 3 && $# -le 5 ]] || { echo "Usage: $0 SAVED_INSTALLS FIXTURE_SO NEW_OUTPUT_DIR [MODE [GAMEDLL_SO]]" >&2; exit 2; }
 base=$(realpath -e -- "$1")
 fixture=$(realpath -e -- "$2")
@@ -9,10 +10,19 @@ case "$output/" in
   "$base/"*) echo "Output must be outside the saved installations." >&2; exit 2 ;;
 esac
 mode=${4:-fixture}
+engines=(linux-hlds linux-rehlds)
+metamod=classic
 case "$mode" in
   fixture) marker=FAKE_FIXTURE ;;
   stock) marker=FAKE_STOCK ;;
   map) marker=FAKE_MAP ;;
+  precache) marker=PRECACHE ;;
+  precache-metamod-r)
+    marker=PRECACHE
+    mode=precache
+    engines=(linux-rehlds)
+    metamod=metamod-r
+    ;;
   reentry) marker=FAKE_REENTRY ;;
   allocation-reentry)
     marker=FAKE_REENTRY
@@ -31,7 +41,7 @@ fi
 mkdir -- "$output"
 ulimit -c 0
 failed=0
-for engine in linux-hlds linux-rehlds; do
+for engine in "${engines[@]}"; do
   source_dir="$base/$engine"
   unsafe_entry=$(find "$source_dir" ! -type f ! -type d -print -quit)
   if [[ -n $unsafe_entry ]]; then
@@ -66,11 +76,18 @@ for engine in linux-hlds linux-rehlds; do
       unset METAMOD_MESSAGE_PROBE
     fi
     printf 'gamedll %s\nplugins_file addons/mm_fixture/plugins.ini\n' "$gamedll" >ricochet/addons/mm_fixture/config.ini
-    cp -- ricochet/addons/classic/dlls/metamod_i386.so ricochet/addons/classic/dlls/metamod.so
-    sed -i '/^gamedll_linux /c\gamedll_linux "addons/classic/dlls/metamod.so"' ricochet/liblist.gam
+    if [[ $metamod == classic ]]; then
+      cp -- ricochet/addons/classic/dlls/metamod_i386.so ricochet/addons/classic/dlls/metamod.so
+      sed -i '/^gamedll_linux /c\gamedll_linux "addons/classic/dlls/metamod.so"' ricochet/liblist.gam
+    else
+      sed -i '/^gamedll_linux /c\gamedll_linux "addons/metamod-r/dlls/metamod_i386.so"' ricochet/liblist.gam
+    fi
     mkfifo "$output/$engine.in"
     exec 3<>"$output/$engine.in"
-    LD_LIBRARY_PATH="$PWD" timeout --kill-after=3s 20s ./hlds_linux \
+    timeout_seconds=20
+    attempts=30
+    if [[ $mode == precache ]]; then timeout_seconds=60; attempts=120; fi
+    LD_LIBRARY_PATH="$PWD" timeout --kill-after=3s "${timeout_seconds}s" ./hlds_linux \
       -console -insecure -nomaster -game ricochet -ip 127.0.0.1 -port 27057 \
       +ip 127.0.0.1 +sv_lan 1 +maxplayers 2 +deathmatch 1 \
       +localinfo mm_configfile addons/mm_fixture/config.ini \
@@ -78,7 +95,29 @@ for engine in linux-hlds linux-rehlds; do
       +localinfo mm_gamedll "$gamedll" +map rc_arena <&3 >"$output/$engine.log" 2>&1 &
     pid=$!
     sent_change=0
-    for ((n=0; n<30; ++n)); do
+    precache_stage=0
+    for ((n=0; n<attempts; ++n)); do
+      if [[ $mode == precache ]]; then
+        log="$output/$engine.log"
+        if grep -q '^PRECACHE FAIL ' "$log" || ! kill -0 "$pid" 2>/dev/null; then break; fi
+        case "$precache_stage" in
+          0) if grep -Fxq 'PRECACHE READY visit=1' "$log"; then
+               printf 'version\nmeta version\nmeta list\nmeta game\nsdk_precache_status\n' >&3
+               precache_stage=1
+             fi ;;
+          1) if grep -Fxq 'PRECACHE STATUS PASS visit=1' "$log"; then
+               printf 'changelevel rc_deathmatch\n' >&3
+               precache_stage=2
+             fi ;;
+          2) if grep -Fxq 'PRECACHE READY visit=2' "$log"; then
+               printf 'sdk_precache_status\n' >&3
+               precache_stage=3
+             fi ;;
+          3) if grep -Fxq 'PRECACHE STATUS PASS visit=2' "$log"; then break; fi ;;
+        esac
+        sleep .4
+        continue
+      fi
       if grep -Eq "^$marker (PASS|FAIL|outer completed)|Host_Error|FATAL ERROR" "$output/$engine.log" || ! kill -0 "$pid" 2>/dev/null; then
         break
       fi
@@ -124,6 +163,10 @@ for engine in linux-hlds linux-rehlds; do
       exit 0
     fi
     ((status == 0)) || exit "$status"
+    if [[ $mode == precache ]]; then
+      python3 "$script_dir/../precaching/check-log.py" "$output/$engine.log"
+      exit 0
+    fi
     grep -q "^$marker PASS " "$output/$engine.log"
     if [[ $mode == reentry || $mode == allocation-reentry ]]; then
       grep -E '^map[[:space:]]*:[[:space:]]+rc_deathmatch([[:space:]]|$)' "$output/$engine.log"

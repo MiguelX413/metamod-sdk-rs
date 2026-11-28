@@ -24,3 +24,7 @@ crate-type = ["cdylib"]
 [[example]]
 name = "entity_relationships"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "precache_lifecycle"
+crate-type = ["cdylib"]
