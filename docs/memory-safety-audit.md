@@ -84,6 +84,15 @@ set of results extends the historical compatibility certificate.
 
 ## Controlled Rust and native fixtures
 
+Model and sound [precaching](resource-precaching.md) requires static validated
+names because classic implementations can retain the original pointer.
+The SDK allocates no registration storage. The worldspawn scope is synchronous,
+not deferred; lifecycle interruption prevents publishing a returned index and
+blocks subsequent calls through that scope. The host must implement the reviewed
+worldspawn/loading contract and must not unwind or jump across Rust frames on
+native failure. Asset validity and native resource capacity remain host concerns;
+these calls cannot promise recovery from fatal engine errors.
+
 Initialize the pinned upstream submodules and install libclang as described
 in the [SDK reference](sdk-reference.md#linux-i686). On a development machine with nightly Miri:
 

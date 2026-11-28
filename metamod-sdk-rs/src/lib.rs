@@ -55,6 +55,7 @@
 //! | Discover entities and copy their properties | [`Context::entities`], [`Context::entity_info`], [`Context::entity_spatial`] |
 //! | Observe entity owners, enemies, and attachments | [`Context::entity_relationships`], [`EntityRelationships`] |
 //! | Read server timing and map/game state | [`Server::state`], [`ServerState`] |
+//! | Register models and sounds during map loading | [`Plugin::precache`], [`Precache`] |
 //! | Trace geometry | [`Server::trace_line`], [`Server::trace_hull`] |
 //! | Reject a connection | [`ClientAdmission`] |
 //! | Observe map keyvalues | [`KeyValueEvent`] |
@@ -134,6 +135,7 @@ pub mod __ffi;
 mod engine;
 mod hooks;
 mod message;
+mod resources;
 mod runtime;
 mod server_state;
 mod trace;
@@ -162,6 +164,9 @@ pub use message::{
     MAX_USER_MESSAGE_BYTES, MessageLookupError, MessagePayloadError, MessageRecipient,
     MessageSendError, MessageSender, RegisteredUserMessage, StaleMessageRecipient,
     UserMessagePayload, UserMessageSize,
+};
+pub use resources::{
+    InvalidResourcePath, ModelIndex, Precache, PrecacheError, ResourcePath, SoundIndex,
 };
 pub use server_state::ServerState;
 pub use trace::{
@@ -192,6 +197,9 @@ pub mod prelude {
         Plugin, PostHookResult, RegisteredUserMessage, Server, ServerState, StaleMessageRecipient,
         TraceError, TraceMonsters, TraceOptions, TracePlane, TraceResult, TraceSegment,
         UserMessagePayload, UserMessageSize, console_name, cvar_value, export_plugin,
+    };
+    pub use crate::{
+        InvalidResourcePath, ModelIndex, Precache, PrecacheError, ResourcePath, SoundIndex,
     };
 }
 
@@ -270,6 +278,16 @@ pub trait Plugin: Default + 'static {
     /// Static plugin identity. Supplied by the registration attribute, or manually
     /// when using [`export_plugin!`].
     const METADATA: Metadata;
+
+    /// Opt into the synchronous resource-loading callback before worldspawn.
+    const PRECACHE: bool = false;
+
+    /// Register static model and sound paths during map loading. Requires
+    /// [`Self::PRECACHE`]. Reentrant loading while plugin state is borrowed
+    /// skips this callback; it is never deferred into an unsafe native phase.
+    /// Runtime entity spawns do not open this scope. Native hosts must deliver
+    /// the world Spawn during their resource-loading phase, before activation.
+    fn precache(&mut self, _resources: &mut Precache<'_>) {}
 
     /// Return false to decline attachment and drop this instance.
     fn initialize(&mut self, _context: &mut Context<'_>) -> bool {

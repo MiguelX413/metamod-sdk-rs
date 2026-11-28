@@ -14,7 +14,8 @@ Focus on game-agnostic SDK features and their validation:
 2. Add small, useful engine capabilities with enforceable lifetime and phase
    rules. Owned entity relationship snapshots have synthetic coverage and
    [Linux live results](entity-relationships.md); Win32 remains unverified.
-   Resource precaching is another candidate after reviewing its native contracts.
+   Loading-only model/sound precaching is implemented; live validation remains
+   open. Resource lookup, generic downloads and event precaching remain raw.
 3. Expand typed hooks as those capabilities need them. Keep ReHLDS extensions
    optional and retain portable behavior where the native interface permits it.
 
@@ -203,7 +204,7 @@ put generic engine services and hooks ahead of game-specific adapters.
 | NewDLL and CVar replies | Private-data release notifications, collision decisions, and correlated CVar query/reply handling. | Pointer retirement timing, query/session identity, missing or late replies, reentry, disconnect, and shutdown. |
 | Entity operations | Generation-checked creation/removal, narrowly scoped mutation, and supported GameDLL entity dispatch. | Same-slot reuse, map retirement, callbacks during creation/removal, private-data ownership, and GameDLL-specific invariants. |
 | Events and sound | Typed parameters and wrappers for emitting/stopping sound and firing native events. | Argument encoding, resource lifetimes, phase restrictions, recipient/session changes, and real-client behavior. |
-| Resource services | Model/sound/event precaching, resource indices, and supported resource lookup. | Correct initialization phase, map-scoped index validity, unavailable/duplicate resources, and live map transitions. |
+| Resource services | Model/sound precaching and typed indices are implemented with static names. Extend to event scripts, generic downloads and lookup only after their contracts are reviewed. | Current scoped API needs live host validation. Preserve initialization-phase restrictions, map-scoped index validity, and native retention/failure contracts. |
 | Additional messaging | Schemas/adapters, destination modes, and optional host integrations justified by ownership guarantees. | Exact client bytes and recipients, payload limits, hook compatibility, lifecycle interruption, and explicit exclusivity contracts. Portable unrestricted safe sending is not assumed possible. |
 | Movement and physics | Audit opaque payload layouts, then design callback-scoped reads/mutation and selected movement services. | x86 layout checks on both platforms, aliasing and reentry analysis, mutation boundaries, retained-pointer rejection, and gameplay regressions. |
 | Networking and client state | Scoped snapshots or hooks for entity/client state, user commands, and packet construction where valid. | Per-invocation lifetimes, writable output bounds, protocol consistency, session replacement, and live client verification. |

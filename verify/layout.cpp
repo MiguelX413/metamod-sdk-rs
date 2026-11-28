@@ -39,9 +39,12 @@ int main() {
     std::printf("log_error %zu\n", offsetof(mutil_funcs_t, pfnLogError));
     std::printf("log_developer %zu\n", offsetof(mutil_funcs_t, pfnLogDeveloper));
     std::printf("DllFunctions %zu %zu\n", sizeof(DLL_FUNCTIONS), alignof(DLL_FUNCTIONS));
+    std::printf("spawn %zu\n", offsetof(DLL_FUNCTIONS, pfnSpawn));
     std::printf("start_frame %zu\n", offsetof(DLL_FUNCTIONS, pfnStartFrame));
     std::printf("client_connect %zu\n", offsetof(DLL_FUNCTIONS, pfnClientConnect));
     std::printf("EngineFunctions %zu %zu\n", sizeof(enginefuncs_t), alignof(enginefuncs_t));
+    std::printf("pfnPrecacheModel %zu\n", offsetof(enginefuncs_t, pfnPrecacheModel));
+    std::printf("pfnPrecacheSound %zu\n", offsetof(enginefuncs_t, pfnPrecacheSound));
     std::printf("pfnServerPrint %zu\n", offsetof(enginefuncs_t, pfnServerPrint));
     std::printf("pfnIndexOfEdict %zu\n", offsetof(enginefuncs_t, pfnIndexOfEdict));
     std::printf("pfnServerActivate %zu\n", offsetof(DLL_FUNCTIONS, pfnServerActivate));

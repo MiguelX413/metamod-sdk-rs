@@ -88,6 +88,7 @@ fn main() {
         size_of::<DllFunctions>(),
         align_of::<DllFunctions>()
     );
+    println!("spawn {}", offset_of!(DllFunctions, pfnSpawn));
     println!("start_frame {}", offset_of!(DllFunctions, pfnStartFrame));
     println!(
         "client_connect {}",
@@ -97,6 +98,14 @@ fn main() {
         "EngineFunctions {} {}",
         size_of::<EngineFunctions>(),
         align_of::<EngineFunctions>()
+    );
+    println!(
+        "pfnPrecacheModel {}",
+        offset_of!(EngineFunctions, pfnPrecacheModel)
+    );
+    println!(
+        "pfnPrecacheSound {}",
+        offset_of!(EngineFunctions, pfnPrecacheSound)
     );
     println!(
         "pfnServerPrint {}",

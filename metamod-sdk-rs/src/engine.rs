@@ -5,8 +5,9 @@ use metamod_sys::{
         MetamodAddServerCommand, MetamodCVarGetPointer, MetamodCVarGetString, MetamodCVarRegister,
         MetamodCVarSetString, MetamodCmd_Argc, MetamodCmd_Argv, MetamodCreateFakeClient,
         MetamodGetPlayerAuthId, MetamodGetPlayerUserId, MetamodIndexOfEdict, MetamodMessageBegin,
-        MetamodMessageEnd, MetamodPEntityOfEntIndex, MetamodServerCommand, MetamodServerPrint,
-        MetamodSzFromIndex, MetamodTraceHull, MetamodTraceLine, MetamodWriteByte, cvar_t,
+        MetamodMessageEnd, MetamodPEntityOfEntIndex, MetamodPrecacheModel, MetamodPrecacheSound,
+        MetamodServerCommand, MetamodServerPrint, MetamodSzFromIndex, MetamodTraceHull,
+        MetamodTraceLine, MetamodWriteByte, cvar_t,
     },
 };
 use std::{
@@ -42,6 +43,8 @@ macro_rules! engine_callbacks {
 }
 
 engine_callbacks! {
+    precache_model: MetamodPrecacheModel = pfnPrecacheModel,
+    precache_sound: MetamodPrecacheSound = pfnPrecacheSound,
     create_fake_client: MetamodCreateFakeClient = pfnCreateFakeClient,
     queue_server_command: MetamodServerCommand = pfnServerCommand,
     message_begin: MetamodMessageBegin = pfnMessageBegin,

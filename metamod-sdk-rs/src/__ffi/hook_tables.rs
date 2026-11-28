@@ -2,7 +2,7 @@
 
 use super::callbacks::{
     begin_map, client_connect, game_shutdown, key_value, lag_post, lag_pre, player_disconnect,
-    player_join, server_activate, server_deactivate, start_frame,
+    player_join, server_activate, server_deactivate, spawn, start_frame,
 };
 use super::state::wrong_thread;
 use crate::Plugin;
@@ -44,6 +44,7 @@ pub(super) unsafe extern "C" fn entity_api<P: Plugin>(
             version,
             ENTITY_INTERFACE,
             DllFunctions {
+                pfnSpawn: P::PRECACHE.then_some(spawn::<P>),
                 pfnClientConnect: P::CLIENT_CONNECT_PRE.then_some(client_connect::<P>),
                 pfnStartFrame: Some(start_frame::<P>),
                 pfnKeyValue: P::KEYVALUE_PRE.then_some(key_value::<P>),

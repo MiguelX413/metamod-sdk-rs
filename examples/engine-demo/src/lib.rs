@@ -2,6 +2,9 @@ use metamod_sdk_rs::prelude::*;
 use std::ffi::CString;
 
 static MESSAGE: &ConsoleName = console_name!(c"RUST_HELLO_MESSAGE");
+// These demo assets must exist in the selected game's search path.
+const LASER: &ResourcePath = ResourcePath::new(c"sprites/laserbeam.spr").unwrap();
+const SILENCE: &ResourcePath = ResourcePath::new(c"common/null.wav").unwrap();
 
 fn c_string(bytes: impl Into<Vec<u8>>) -> CString {
     CString::new(bytes).expect("demo text contains no NUL bytes")
@@ -10,6 +13,8 @@ fn c_string(bytes: impl Into<Vec<u8>>) -> CString {
 #[derive(Default)]
 struct EngineDemo {
     first_frame_seen: bool,
+    model: Option<ModelIndex>,
+    sound: Option<SoundIndex>,
 }
 
 #[metamod_plugin(
@@ -19,6 +24,13 @@ struct EngineDemo {
     log_tag = "RUSTENGINE"
 )]
 impl Plugin for EngineDemo {
+    const PRECACHE: bool = true;
+
+    fn precache(&mut self, resources: &mut Precache<'_>) {
+        self.model = resources.model(LASER).ok();
+        self.sound = resources.sound(SILENCE).ok();
+    }
+
     fn initialize(&mut self, ctx: &mut Context<'_>) -> bool {
         ctx.metamod()
             .print_console_trunc(c"Rust Engine Demo loaded");
@@ -27,6 +39,13 @@ impl Plugin for EngineDemo {
 
     fn server_command(&mut self, ctx: &mut Context<'_>, command: &Command) {
         match command.name().as_c_str().to_bytes() {
+            b"rust_resources" => ctx.server().print(&c_string(format!(
+                "Resources model={:?} sound={:?} current={}/{}\n",
+                self.model.map(ModelIndex::get),
+                self.sound.map(SoundIndex::get),
+                self.model.is_some_and(|model| ctx.is_model_current(model)),
+                self.sound.is_some_and(|sound| ctx.is_sound_current(sound)),
+            ))),
             b"rust_entities" => show_entities(ctx, command),
             b"rust_trace" => show_trace(ctx),
             b"rust_state" => show_state(ctx),
@@ -125,6 +144,11 @@ impl Plugin for EngineDemo {
             if let Err(error) = server.register_command(console_name!(c"rust_relationships")) {
                 server.print(&c_string(format!(
                     "Could not register rust_relationships: {error}\n"
+                )));
+            }
+            if let Err(error) = server.register_command(console_name!(c"rust_resources")) {
+                server.print(&c_string(format!(
+                    "Could not register rust_resources: {error}\n"
                 )));
             }
             server.print(c"Rust Engine Demo first frame\n");

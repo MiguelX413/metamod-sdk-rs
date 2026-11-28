@@ -68,6 +68,7 @@ use the same dispatch.
 | Plugin method | Timing |
 | --- | --- |
 | `initialize` | Once per startup attach attempt, after construction. Return `false` to decline. |
+| `precache` | Opt-in synchronous callback before worldspawn during loading; register static model/sound paths through its scoped `Precache`. |
 | `start_frame` | Before the game DLL's frame callback. |
 | `client_connect` | Opt-in synchronous pre-hook before GameDLL admission. |
 | `key_value` | Opt-in owned observation before GameDLL keyvalue dispatch. |
@@ -124,6 +125,13 @@ keep globals initialized and string ranges readable during these reads.
 Run `rust_state` in the engine demo to print a snapshot. The
 `server.state.v1` audit probe and optional `server-state v1` profile
 cover the feature. [Audit procedure](runtime-audit.md#server-state-validation)
+
+### Resource precaching
+
+For model and sound registration, use the loading-only [`Plugin::precache`
+callback](resource-precaching.md). It supplies a scoped capability rather than
+exposing late precaching through `Server`. The engine demo's `rust_resources`
+command reports its registered indices. Check that its demo assets are installed.
 
 ### Console output
 

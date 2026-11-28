@@ -16,6 +16,7 @@ and use engine services through the SDK's wrappers.
   work with console variables.
 - Read server timing, capacities, map names, and game-mode values through
   owned snapshots.
+- Precache models and sounds through a loading-only callback with static names.
 - Find entities, inspect snapshots, and trace lines and hulls through the
   world. Player and entity handles help detect stale identities.
 

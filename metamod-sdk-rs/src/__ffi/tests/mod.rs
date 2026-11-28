@@ -41,3 +41,4 @@ include!("lifecycle.rs");
 
 include!("server_state.rs");
 include!("relationships.rs");
+include!("resources.rs");

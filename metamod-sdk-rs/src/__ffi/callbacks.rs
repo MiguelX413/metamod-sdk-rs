@@ -14,6 +14,21 @@ use std::collections::hash_map::Entry;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+pub(super) unsafe extern "C" fn spawn<P: Plugin>(edict: *mut edict_t) -> c_int {
+    hook(|| {
+        if registration_available() {
+            crate::resources::world_spawn(edict, |resources| {
+                synchronous::<P, ()>(|plugin, _, _| {
+                    plugin.precache(resources);
+                    HookResult::Ignored
+                });
+            });
+        }
+    });
+    // No spawn decision: Metamod ignores this placeholder.
+    0
+}
+
 pub(super) unsafe extern "C" fn client_connect<P: Plugin>(
     _: *mut edict_t,
     name: *const c_char,
@@ -143,6 +158,7 @@ pub(super) unsafe extern "C" fn start_frame<P: Plugin>() {
 
 pub(super) unsafe extern "C" fn begin_map(_: *mut edict_t, _: c_int, _: c_int) {
     hook(|| {
+        crate::resources::begin_activation();
         if SHUTDOWN.get() {
             return;
         }
@@ -165,6 +181,7 @@ pub(super) unsafe extern "C" fn server_activate<P: Plugin>(_: *mut edict_t, _: c
                 INDEX_LOOKUP.set(Some(true));
             }
             crate::trace::activate_map();
+            crate::resources::activated();
             submit::<P>(Event::Activate);
         }
     });
@@ -172,6 +189,7 @@ pub(super) unsafe extern "C" fn server_activate<P: Plugin>(_: *mut edict_t, _: c
 
 pub(super) unsafe extern "C" fn server_deactivate<P: Plugin>() {
     hook(|| {
+        crate::resources::invalidate();
         let (depth, _) = ACTIVATION.get();
         ACTIVATION.set((depth, depth != 0));
         crate::trace::invalidate_map();
@@ -214,6 +232,7 @@ pub(super) unsafe extern "C" fn player_disconnect<P: Plugin>(edict: *mut edict_t
 
 pub(super) unsafe extern "C" fn game_shutdown<P: Plugin>() {
     hook(|| {
+        crate::resources::invalidate();
         if !SHUTDOWN.replace(true) {
             ACTIVATION.set((0, false));
             crate::trace::invalidate_map();

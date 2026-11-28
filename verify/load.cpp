@@ -54,6 +54,24 @@ static int invalidated_cvar_reports;
 static void (*command)();
 static void (*trace_command)();
 static void (*entities_command)();
+static void (*resources_command)();
+static bool precache_loading;
+static int precache_calls, resource_reports;
+static bool expect_resources_current = true;
+static const char *retained_model, *retained_sound;
+
+static int precache_model(const char *name) {
+    assert(precache_loading && std::strcmp(name, "sprites/laserbeam.spr") == 0);
+    retained_model = name;
+    ++precache_calls;
+    return 11;
+}
+static int precache_sound(const char *name) {
+    assert(precache_loading && std::strcmp(name, "common/null.wav") == 0);
+    retained_sound = name;
+    ++precache_calls;
+    return 12;
+}
 static void (*relationships_command)();
 static int relationship_reports;
 static const char *expected_relationships;
@@ -146,6 +164,9 @@ static void register_command(const char *name, void (*callback)()) {
         if (std::strcmp(name, "mm_audit_report") == 0) slot = &audit_report;
         assert(slot && !*slot);
         *slot = callback;
+    } else if (std::strcmp(name, "rust_resources") == 0) {
+        assert(!resources_command);
+        resources_command = callback;
     } else if (std::strcmp(name, "rust_state") == 0) {
         assert(!state_command);
         state_command = callback;
@@ -275,6 +296,14 @@ static int index_of_edict(const edict_t *edict) {
 }
 
 static void server_print(const char *message) {
+    if (std::strncmp(message, "Resources ", 10) == 0) {
+        assert(engine_demo);
+        assert(std::strcmp(message, expect_resources_current
+            ? "Resources model=Some(11) sound=Some(12) current=true/true\n"
+            : "Resources model=Some(11) sound=Some(12) current=false/false\n") == 0);
+        ++resource_reports;
+        return;
+    }
     if (expected_relationships) {
         assert(std::strcmp(message, expected_relationships) == 0);
         expected_relationships = nullptr;
@@ -535,6 +564,8 @@ int main(int argc, char **argv) {
     auto attach = symbol<META_ATTACH_FN>(module, "Meta_Attach");
     auto detach = symbol<META_DETACH_FN>(module, "Meta_Detach");
     enginefuncs_t engine{};
+    engine.pfnPrecacheModel = precache_model;
+    engine.pfnPrecacheSound = precache_sound;
     engine.pfnServerPrint = server_print;
     engine.pfnTraceLine = trace_line;
     engine.pfnTraceHull = trace_hull;
@@ -661,6 +692,16 @@ int main(int argc, char **argv) {
         hooks.pfnKeyValue(&world, nullptr);
         assert(keyvalue_logs == 1 && data.fHandled == 17 && globals.mres == MRES_IGNORED);
     }
+    assert((hooks.pfnSpawn != nullptr) == engine_demo);
+    if (engine_demo) {
+        precache_loading = true;
+        assert(hooks.pfnSpawn(&world) == 0 && globals.mres == MRES_IGNORED);
+        assert(precache_calls == 2);
+        precache_loading = false;
+        assert(hooks.pfnSpawn(&player) == 0 && globals.mres == MRES_IGNORED);
+        assert(hooks.pfnSpawn(&world) == 0 && globals.mres == MRES_IGNORED);
+        assert(precache_calls == 2);
+    }
     hooks.pfnServerActivate(nullptr, 0, 0);
     globals.mres = MRES_UNSET;
     post_hooks.pfnServerActivate(nullptr, 0, 0);
@@ -680,7 +721,10 @@ int main(int argc, char **argv) {
         globals.status = MRES_UNSET;
     }
     globals.mres = MRES_SUPERCEDE;
-    std::thread foreign_hook([] { hooks.pfnStartFrame(); });
+    std::thread foreign_hook([] {
+        hooks.pfnStartFrame();
+        if (engine_demo) assert(hooks.pfnSpawn(&world) == 0);
+    });
     foreign_hook.join();
     assert(globals.mres == MRES_SUPERCEDE && logged == 1);
     for (int frame = 0; frame < 2; ++frame) {
@@ -690,6 +734,11 @@ int main(int argc, char **argv) {
     }
     if (engine_demo) {
         assert(state_command);
+        assert(resources_command && precache_calls == 2);
+        assert(hooks.pfnSpawn(&world) == 0 && globals.mres == MRES_IGNORED);
+        args[0] = "rust_resources";
+        resources_command();
+        assert(resource_reports == 1 && precache_calls == 2);
         args[0] = "rust_state";
         args[1] = nullptr;
         state_command();
@@ -712,6 +761,10 @@ int main(int argc, char **argv) {
         string_transition = false;
         hooks.pfnServerActivate(nullptr, 0, 0);
         post_hooks.pfnServerActivate(nullptr, 0, 0);
+        expect_resources_current = false;
+        args[0] = "rust_resources";
+        resources_command();
+        assert(resource_reports == 2 && precache_calls == 2);
         args[0] = "rust_hello";
         assert(logged == 4);
         globals.mres = MRES_UNSET;
@@ -885,6 +938,9 @@ int main(int argc, char **argv) {
     assert(logged == expected_logs && globals.mres == MRES_IGNORED);
     if (engine_demo) {
         char reason[128] = "unchanged";
+        // Classic hosts may retain these exact pointers through shutdown.
+        assert(std::strcmp(retained_model, "sprites/laserbeam.spr") == 0);
+        assert(std::strcmp(retained_sound, "common/null.wav") == 0);
         assert(hooks.pfnClientConnect(&player, "RustAdmissionReject", "loopback", reason) == 1);
         assert(globals.mres == MRES_IGNORED && std::strcmp(reason, "unchanged") == 0);
         command();
