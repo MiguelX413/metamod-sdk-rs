@@ -20,3 +20,7 @@ metamod-sdk-rs = { path = "../../metamod-sdk-rs" }
 [[example]]
 name = "message_delivery"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "entity_relationships"
+crate-type = ["cdylib"]

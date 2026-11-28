@@ -77,8 +77,10 @@ Rust/Miri fixtures cover unrelated addresses, null and vacant targets,
 self-links, source replacement, target reuse, changed relationships, map
 retirement and shutdown. The shared x86 loader checks world/self links,
 vacant/unrelated targets and map interruption through the demo command.
-These synthetic checks do not establish live host behavior or extend the
-historical compatibility certificate.
+These synthetic checks do not establish live host behavior. Separate
+[Linux live tests](entity-relationships.md) recorded ordinary removal/reuse
+and map changes on three identified host combinations, without instrumentation. Neither
+set of results extends the historical compatibility certificate.
 
 ## Controlled Rust and native fixtures
 

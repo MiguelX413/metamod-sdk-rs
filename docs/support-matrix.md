@@ -13,7 +13,7 @@ The [release roadmap](roadmap.md) lists the work required before release.
 | Console, commands, and CVars | Core | Validated names and values, owned command tokens and CVar reads, bounded permanent registrations. Register once from an attached callback, not `initialize`. |
 | Server timing and game state | Core API; candidate validation pending | Active-map owned snapshots, optional fields for invalid native values, and numeric GameDLL-defined modes. Linux development results are recorded below; Win32 validation remains pending. |
 | Player identity and information | Core | Distinct slot, native user ID, and tracked session types; owned information snapshots. Tracking covers observed joins. Revalidate saved sessions. |
-| Entity discovery and snapshots | Core; relationship validation pending | Map epochs and native serials, bounded index lookup, owned common fields, strings and relationships. Relationship targets describe current observed occupants, not historical pointer intent. New relationship snapshots have synthetic coverage; live Linux/Win32 behavior remains unverified. No general entity mutation or GameDLL-private data access. |
+| Entity discovery and snapshots | Core API; candidate validation pending | Map epochs and native serials, bounded index lookup, owned common fields, strings and relationships. Relationship targets describe current observed occupants, not historical pointer intent. Relationship snapshots have synthetic coverage and recorded Linux results on three host combinations; Win32 and other combinations remain unverified. No general entity mutation or GameDLL-private data access. |
 | Line and standard hull traces | Core | Finite endpoints, validated skip identity, owned results. A missing hit handle does not imply no collision. |
 | Admission, keyvalue, and lag-compensation hooks | Core API; host validation required | Explicit hook opt-ins, owned observations, typed synchronous decisions, and validated `ClientRejectReason` values. Native fixture coverage does not establish live behavior on every host. |
 | User-message payload construction | Core | Rust-only byte encoding and size validation, including the 192-byte payload budget. No implied schema correctness. |
@@ -87,6 +87,10 @@ All rows below are Linux i686 with stock Ricochet unless stated otherwise.
   checks passed. The `server-state v1` evaluator returned **UNVERIFIED**
   because the plugin source was dirty and the copied runner had no clean
   checkout identity. These observations require clean-candidate reproduction.
+
+[Relationship snapshots](entity-relationships.md) passed live links, target
+removal/reuse, and map changes on the first three Linux rows. The new probe and native fixture were development builds; these
+observations do not extend the historical core v2 certificate. Win32 relationship tests remain unverified.
 
 Server-state snapshots were added after the historical core v2 run.
 Their evidence comes from the new observations, separately from that

@@ -358,6 +358,8 @@ snapshot with optional `owner`, `enemy`, `aiment` (follow target), and
 `ground_entity` handles. World and self-links are allowed. Relationship
 meaning is GameDLL-defined; a ground-entity field alone does not establish
 that an entity is grounded. Try `rust_relationships 7` in the engine demo.
+[Live test results and reproduction](entity-relationships.md) cover removal,
+slot reuse, and map changes on three Linux host combinations.
 
 The SDK compares relationship addresses with bounded engine-table lookups;
 it never dereferences a relationship pointer or submits it to an index
